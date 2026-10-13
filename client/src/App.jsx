@@ -1,4 +1,12 @@
-
+// ---------------------------------------------------------------
+// ProxiSpeak - Week 1 frontend (virtual office with avatar movement)
+//
+// What this file does:
+//   1. Draws a 2D office on an HTML5 <canvas>.
+//   2. Lets you move your avatar with W/A/S/D, arrow keys, or a click.
+//   3. Sends your position to the server (max 20 times per second).
+//   4. Shows every other user's avatar, moving in real time.
+// ---------------------------------------------------------------
 import { useCallback, useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import "./App.css";
@@ -123,6 +131,10 @@ export default function App() {
   const lastSentPosRef = useRef({ x: 100, y: 100 }); // what I last sent
   const myIdRef = useRef(""); // my socket id
   const spawnedRef = useRef(false); // have I received my start position yet?
+  // DAY 2: the smoothed ("display") position of OTHER users.
+  // Map of user id -> { x, y }. The server sends them only 20 times per
+  // second, so we glide the drawn avatar toward the latest position.
+  const displayRef = useRef(new Map());
 
   // ---------- State (things shown in the page text) ----------
   const [users, setUsers] = useState([]);
@@ -239,12 +251,37 @@ export default function App() {
       const ctx = canvas.getContext("2d");
       if (ctx) {
         // DAY 1: draw MYSELF from my local position (instant and smooth).
-        // Everyone else is drawn at the position the server last told us.
-        const drawList = usersRef.current.map((user) =>
-          user.id === myIdRef.current
-            ? { ...user, x: current.x, y: current.y }
-            : user
-        );
+        // DAY 2: draw OTHERS gliding toward their latest server position,
+        // so 20 updates per second look like smooth 60 FPS movement.
+        const display = displayRef.current;
+        const glide = 1 - Math.exp(-12 * dt); // how fast others catch up
+        const stillHere = new Set(); // ids of users in the current list
+
+        const drawList = usersRef.current.map((user) => {
+          if (user.id === myIdRef.current) {
+            return { ...user, x: current.x, y: current.y };
+          }
+
+          stillHere.add(user.id);
+
+          // First time we see this user: show them exactly where they are
+          // (do not fly in from the corner).
+          let shown = display.get(user.id);
+          if (!shown) {
+            shown = { x: user.x, y: user.y };
+            display.set(user.id, shown);
+          }
+
+          // Move the drawn position a bit closer to the real position.
+          shown.x += (user.x - shown.x) * glide;
+          shown.y += (user.y - shown.y) * glide;
+          return { ...user, x: shown.x, y: shown.y };
+        });
+
+        // Forget users who left, so the map does not grow forever.
+        for (const id of display.keys()) {
+          if (!stillHere.has(id)) display.delete(id);
+        }
         drawOffice(ctx, drawList, myIdRef.current);
       }
 
