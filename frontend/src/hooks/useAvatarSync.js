@@ -9,21 +9,35 @@ export function useAvatarSync(position, userId) {
 
   useEffect(() => {
     latestPosition.current = position;
+  }, [position]);
 
-    if (!userId || !socket.connected) {
-      return;
+  useEffect(() => {
+    if (!userId || !socket.connected) return undefined;
+
+    let timer;
+
+    function scheduleUpdate() {
+      const elapsed = Date.now() - lastSentAt.current;
+      const delay = Math.max(0, UPDATE_INTERVAL - elapsed);
+
+      timer = setTimeout(() => {
+        if (!socket.connected) return;
+
+        const { x, y } = latestPosition.current ?? {};
+
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+
+        socket.emit("avatar:move", { x, y });
+        lastSentAt.current = Date.now();
+      }, delay);
     }
 
-    const elapsed = Date.now() - lastSentAt.current;
-    const delay = Math.max(0, UPDATE_INTERVAL - elapsed);
+    scheduleUpdate();
 
-    const timer = setTimeout(() => {
-      if (!socket.connected) return;
-
-      socket.emit("avatar:move", latestPosition.current);
-      lastSentAt.current = Date.now();
-    }, delay);
-
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+    };
   }, [position, userId]);
+
+  return undefined;
 }

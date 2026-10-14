@@ -8,7 +8,7 @@ import { useAvatarSync } from "./hooks/useAvatarSync";
 import { useNearbyUsers } from "./hooks/useNearbyUsers";
 import NearbyPanel from "./components/NearbyPanel";
 import { useInterpolatedAvatars } from "./hooks/useInterpolatedAvatars";
-
+import { useAudioRadius } from "./hooks/useAudioRadius";
 
 
 function App() {
@@ -17,9 +17,10 @@ function App() {
   const { position: localPosition} = useLocalAvatar();
   const { isConnected } = useSocket();
   const { userId, users, roomError, joinRoom } = useRoom();
-  const nearbyUsers = useNearbyUsers(localPosition, users, userId);
-  const interpolatedUsers = useInterpolatedAvatars(nearbyUsers);
   const joined = Boolean(userId);
+  const audioRadius = useAudioRadius(joined ? roomId : "");
+  const nearbyUsers = useNearbyUsers(localPosition, users, userId, audioRadius);
+  const interpolatedUsers = useInterpolatedAvatars(nearbyUsers);
 
   useAvatarSync(localPosition, userId)
 
@@ -30,7 +31,7 @@ function App() {
       return;
     }
 
-    joinRoom(name, roomId);
+    joinRoom(name, roomId, localPosition);
   }
 
   return (
@@ -90,7 +91,7 @@ function App() {
             </p>):(
               <ul className="user-list">
                 {users.map((user)=>(
-                  <li key= {userId} className="user-item">
+                  <li key={user.id} className="user-item">
                     <span className="user-dot"></span>
                     <span> {user.name || "Guest"}</span>
                   </li>
@@ -114,8 +115,7 @@ function App() {
         />
       )}
 
-      {joined && (
-        <NearbyPanel nearbyUsers={nearbyUsers} />
+      {joined && (<NearbyPanel nearbyUsers={nearbyUsers} audioRadius={audioRadius}/>
       )}
     </main>
   );

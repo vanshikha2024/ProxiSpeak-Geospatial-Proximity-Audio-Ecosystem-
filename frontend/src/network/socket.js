@@ -1,22 +1,22 @@
-import {io} from "socket.io-client";
+import { io } from "socket.io-client";
 
-const SERVER_URL = "http://localhost:3000";
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000";
 
 export const socket = io(SERVER_URL, {
-    autoConnect: false,
-    reconnection: true,
-    reconnectionAttempts: 5,
-    reconnectionDelay: 1000,
+  autoConnect: false,
+  reconnection: true,
+  reconnectionAttempts: 5,
+  reconnectionDelay: 1000,
 });
 
-export function connectSocket(){
-    if(!socket.connected){
-        socket.connect();
-    }
+export function connectSocket() {
+  if (!socket.connected) {
+    socket.connect();
+  }
 }
 
-export function disconnectSocket(){
-    if(socket.connected){
-        socket.disconnect();
-    }
+export function disconnectSocket() {
+  if (socket.connected) {
+    socket.disconnect();
+  }
 }

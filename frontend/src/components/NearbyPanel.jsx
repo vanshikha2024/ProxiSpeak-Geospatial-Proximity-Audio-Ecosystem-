@@ -1,13 +1,13 @@
 import "./NearbyPanel.css";
 
-function NearbyPanel({ nearbyUsers = [] }) {
+function NearbyPanel({ nearbyUsers = [], audioRadius = 100 }) {
   const nearby = nearbyUsers.filter((user) => user.isNearby);
 
   return (
     <section className="nearby-panel">
       <h2>Nearby Teammates</h2>
       <p className="nearby-subtitle">
-        People within 180 map units of your avatar
+        People within {audioRadius} pixels of your avatar
       </p>
 
       {nearby.length === 0 ? (
@@ -22,8 +22,8 @@ function NearbyPanel({ nearbyUsers = [] }) {
                 className="nearby-dot"
                 style={{ backgroundColor: user.color || "#6366f1" }}
               />
-              <span className="nearby-name">{user.name || "Guest"}</span>
-              <span className="nearby-distance">{user.distance} units</span>
+              <span className="nearby-name">{user.name || user.username || "Guest"}</span>
+              <span className="nearby-distance">{user.distance} pixels</span>
             </li>
           ))}
         </ul>

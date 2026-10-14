@@ -17,7 +17,8 @@ export function useLocalAvatar() {
 
   useEffect(() => {
     function handleKeyDown(event) {
-      const key = event.key.toLowerCase();
+      const key = event.key?.toLowerCase();
+      if (!key) return;
 
       const directions = {
         arrowup: [0, -STEP],
