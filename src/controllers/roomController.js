@@ -1,5 +1,11 @@
 import Room from '../models/Room.js';
 import User from '../models/User.js';
+import {
+  DEFAULT_AUDIO_RADIUS,
+  DEFAULT_ROOM_WIDTH,
+  DEFAULT_ROOM_HEIGHT,
+  DEFAULT_ROOM_CAPACITY,
+} from '../config/constants.js';
 
 /**
  * GET /api/rooms
@@ -55,9 +61,9 @@ export const createRoom = async (req, res) => {
     const room = await Room.create({
       name: name.trim(),
       description: description ? description.trim() : '',
-      dimensions: dimensions || { width: 1920, height: 1080 },
-      audioRadius: Number.isFinite(audioRadius) ? audioRadius : 100,
-      capacity: Number.isFinite(capacity) ? capacity : 50,
+      dimensions: dimensions || { width: DEFAULT_ROOM_WIDTH, height: DEFAULT_ROOM_HEIGHT },
+      audioRadius: Number.isFinite(audioRadius) ? audioRadius : DEFAULT_AUDIO_RADIUS,
+      capacity: Number.isFinite(capacity) ? capacity : DEFAULT_ROOM_CAPACITY,
       isPrivate: Boolean(isPrivate),
       passcode: passcode || null,
     });

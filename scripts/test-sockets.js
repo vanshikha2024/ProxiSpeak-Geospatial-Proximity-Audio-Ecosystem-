@@ -1,13 +1,14 @@
 import http from 'http';
 import { io as Client } from 'socket.io-client';
+import mongoose from 'mongoose';
 import app from '../src/app.js';
 import connectDB from '../src/config/db.js';
 import { initSocket } from '../src/sockets/socket.js';
 import User from '../src/models/User.js';
-import mongoose from 'mongoose';
+import Room from '../src/models/Room.js';
 
 const runTests = async () => {
-  console.log('--- Starting ProxiSpeak Commit 2 Test Suite ---');
+  console.log('--- Starting ProxiSpeak Week 1 Comprehensive Socket Test Suite ---');
   let passedCount = 0;
   let failedCount = 0;
 
@@ -21,33 +22,50 @@ const runTests = async () => {
     }
   };
 
-  // Connect to DB
-  await connectDB();
+  // Connect to DB if available
+  let isMongoConnected = false;
+  try {
+    await connectDB();
+    isMongoConnected = true;
+    console.log('[Test Suite] Connected to MongoDB for database persistence checks');
+    // Clean up test data
+    await User.deleteMany({ username: { $in: ['TestAlice', 'TestBob', 'TestCharlie', 'TestDave'] } });
+    await Room.deleteMany({ name: { $in: ['TestRoomAlpha', 'TestRoomBeta'] } });
+  } catch (err) {
+    console.warn('[Test Suite] MongoDB unavailable, running in socket-validation mode:', err.message);
+  }
 
-  // Clean up any test users from DB
-  await User.deleteMany({ username: { $in: ['TestAlice', 'TestBob'] } });
-
-  // 1. Start Server on ephemeral/test port
+  // 1. Start Server on test port
   const server = http.createServer(app);
   const ioServer = initSocket(server);
   const TEST_PORT = 5055;
 
   await new Promise((resolve) => server.listen(TEST_PORT, resolve));
-  assert(true, '1. Backend server started successfully on port ' + TEST_PORT);
+  assert(true, `1. Backend server started successfully on port ${TEST_PORT}`);
 
-  // 2. Test GET /health
+  // 2. Health check
   try {
     const healthRes = await fetch(`http://localhost:${TEST_PORT}/health`);
     const healthJson = await healthRes.json();
     assert(
       healthRes.status === 200 && healthJson.status === 'ok',
-      '2. GET /health endpoint returns HTTP 200 status ok'
+      '2. GET /health endpoint returns HTTP 200 and status: ok'
     );
   } catch (err) {
     assert(false, `2. GET /health failed: ${err.message}`);
   }
 
-  // Helper to create client
+  // Create test rooms if Mongo is connected, else use mock IDs
+  let room1Id = new mongoose.Types.ObjectId().toString();
+  let room2Id = new mongoose.Types.ObjectId().toString();
+
+  if (isMongoConnected) {
+    const r1 = await Room.create({ name: 'TestRoomAlpha', audioRadius: 100 });
+    const r2 = await Room.create({ name: 'TestRoomBeta', audioRadius: 100 });
+    room1Id = r1._id.toString();
+    room2Id = r2._id.toString();
+  }
+
   const createClient = () => {
     return Client(`http://localhost:${TEST_PORT}`, {
       transports: ['websocket'],
@@ -57,149 +75,248 @@ const runTests = async () => {
 
   const client1 = createClient();
   const client2 = createClient();
+  const client3 = createClient();
 
-  // 3. Connect two clients
   await Promise.all([
     new Promise((resolve) => client1.on('connect', resolve)),
     new Promise((resolve) => client2.on('connect', resolve)),
+    new Promise((resolve) => client3.on('connect', resolve)),
   ]);
   assert(
-    client1.connected && client2.connected,
-    '3. Two Socket.io clients connected concurrently'
+    client1.connected && client2.connected && client3.connected,
+    '3. Three Socket.io clients connected concurrently'
   );
 
-  // 4. Client 1 joins
-  const client1JoinedPromise = new Promise((resolve) => {
-    client1.on('avatar:joined', resolve);
-  });
-  const client1InitialPromise = new Promise((resolve) => {
-    client1.on('avatars:initial', resolve);
-  });
+  // 4. Client 1 joins Room 1
+  const c1JoinedPromise = new Promise((resolve) => client1.once('avatar:joined', resolve));
+  const c1InitialPromise = new Promise((resolve) => client1.once('avatars:initial', resolve));
 
-  client1.emit('avatar:join', { username: 'TestAlice', x: 50, y: 50 });
+  client1.emit('avatar:join', { username: 'TestAlice', x: 50, y: 50, roomId: room1Id });
 
-  const c1JoinedData = await client1JoinedPromise;
-  const c1InitialData = await client1InitialPromise;
+  const c1Joined = await c1JoinedPromise;
+  const c1Initial = await c1InitialPromise;
 
   assert(
-    c1JoinedData.username === 'TestAlice' && c1JoinedData.x === 50 && c1JoinedData.y === 50,
-    '5a. Client 1 receives avatar:joined confirmation with valid coordinates'
+    c1Joined.username === 'TestAlice' &&
+      c1Joined.socketId === client1.id &&
+      c1Joined.roomId === room1Id &&
+      c1Joined.x === 50 &&
+      c1Joined.y === 50,
+    '4a. Client 1 receives avatar:joined confirmation with consistent avatarId, socketId, and roomId'
   );
-  assert(
-    Array.isArray(c1InitialData) && c1InitialData.length === 1 && c1InitialData[0].username === 'TestAlice',
-    '4a. Client 1 receives avatars:initial list'
-  );
-
-  // Client 2 joins and verifies receiving current avatar list and Client 1 receiving Client 2's avatar:joined
-  const client2JoinedPromise = new Promise((resolve) => {
-    client2.on('avatar:joined', resolve);
-  });
-  const client2InitialPromise = new Promise((resolve) => {
-    client2.on('avatars:initial', resolve);
-  });
-  const client1NotifiedPromise = new Promise((resolve) => {
-    client1.on('avatar:joined', resolve);
-  });
-
-  client2.emit('avatar:join', { username: 'TestBob', x: 70, y: 80 });
-
-  const c2JoinedData = await client2JoinedPromise;
-  const c2InitialData = await client2InitialPromise;
-  const c1NotifiedData = await client1NotifiedPromise;
 
   assert(
-    Array.isArray(c2InitialData) &&
-      c2InitialData.some((a) => a.username === 'TestAlice') &&
-      c2InitialData.some((a) => a.username === 'TestBob'),
-    '4b. Newly joined Client 2 receives active avatars list including TestAlice and TestBob'
+    Array.isArray(c1Initial) && c1Initial.length === 1 && c1Initial[0].username === 'TestAlice',
+    '4b. Client 1 receives initial avatar snapshot containing only themselves'
   );
+
+  // 5. Client 2 joins SAME Room 1
+  const c2JoinedPromise = new Promise((resolve) => client2.once('avatar:joined', resolve));
+  const c2InitialPromise = new Promise((resolve) => client2.once('avatars:initial', resolve));
+  const c1HeardC2Join = new Promise((resolve) => client1.once('avatar:joined', resolve));
+
+  client2.emit('avatar:join', { username: 'TestBob', x: 70, y: 80, roomId: room1Id });
+
+  const c2Joined = await c2JoinedPromise;
+  const c2Initial = await c2InitialPromise;
+  const c1NotifiedJoin = await c1HeardC2Join;
+
   assert(
-    c1NotifiedData.username === 'TestBob' && c1NotifiedData.x === 70,
-    '4c. Existing Client 1 receives avatar:joined broadcast for newcomer TestBob'
+    c2Initial.length === 2 &&
+      c2Initial.some((a) => a.username === 'TestAlice') &&
+      c2Initial.some((a) => a.username === 'TestBob'),
+    '5a. Newly joined Client 2 receives room initial list containing both TestAlice and TestBob'
   );
 
-  // 5 & 6. Test movement and broadcasting to other clients
-  const client2MovedPromise = new Promise((resolve) => {
-    client2.on('avatar:moved', resolve);
-  });
-
-  let client1ReceivedOwnMove = false;
-  client1.on('avatar:moved', (data) => {
-    if (data.username === 'TestAlice') {
-      client1ReceivedOwnMove = true;
-    }
-  });
-
-  client1.emit('avatar:move', { x: 75, y: 85 });
-
-  const c2MovedData = await client2MovedPromise;
   assert(
-    c2MovedData.username === 'TestAlice' && c2MovedData.x === 75 && c2MovedData.y === 85,
-    '6. Other client (Client 2) receives avatar:moved event with updated coordinates'
+    c1NotifiedJoin.username === 'TestBob' && c1NotifiedJoin.socketId === client2.id,
+    '5b. Existing Client 1 in same room receives avatar:joined broadcast for newcomer TestBob'
   );
+
+  // 6. Multi-Room Isolation: Client 3 joins SEPARATE Room 2
+  let c1SawRoom2Join = false;
+  let c2SawRoom2Join = false;
+  client1.once('avatar:joined', () => { c1SawRoom2Join = true; });
+  client2.once('avatar:joined', () => { c2SawRoom2Join = true; });
+
+  const c3JoinedPromise = new Promise((resolve) => client3.once('avatar:joined', resolve));
+  const c3InitialPromise = new Promise((resolve) => client3.once('avatars:initial', resolve));
+
+  client3.emit('avatar:join', { username: 'TestCharlie', x: 200, y: 200, roomId: room2Id });
+
+  const c3Joined = await c3JoinedPromise;
+  const c3Initial = await c3InitialPromise;
+
   assert(
-    !client1ReceivedOwnMove,
-    '5b. Movement updates are not broadcast back to originating socket (Client 1)'
+    c3Initial.length === 1 && c3Initial[0].username === 'TestCharlie',
+    '6a. Client 3 in Room 2 initial list contains ONLY Room 2 occupants (isolated from Room 1)'
   );
 
-  // 7. Test invalid coordinates rejection
-  const invalidErrorPromise = new Promise((resolve) => {
-    client1.on('error', resolve);
-  });
-  client1.emit('avatar:move', { x: 'invalid_coord', y: null });
-  const errorData = await invalidErrorPromise;
+  await new Promise((r) => setTimeout(r, 100));
   assert(
-    errorData && errorData.message.includes('Invalid coordinates'),
-    '7. Invalid coordinates are rejected safely without crashing the server'
+    !c1SawRoom2Join && !c2SawRoom2Join,
+    '6b. Clients in Room 1 did NOT receive join broadcast from Client 3 in Room 2'
   );
 
-  // Give DB a moment to flush async save
-  await new Promise((r) => setTimeout(r, 200));
+  // 7. Movement & Echo Suppression within Room 1
+  let c1SawOwnEcho = false;
+  client1.once('avatar:moved', () => { c1SawOwnEcho = true; });
 
-  // 9. Verify MongoDB records without duplicate documents
-  const aliceDocs = await User.find({ username: 'TestAlice' });
+  const c2MovePromise = new Promise((resolve) => client2.once('avatar:moved', resolve));
+  let c3SawRoom1Move = false;
+  client3.once('avatar:moved', () => { c3SawRoom1Move = true; });
+
+  client1.emit('avatar:move', { x: 90, y: 95 });
+
+  const c2Move = await c2MovePromise;
+  await new Promise((r) => setTimeout(r, 100));
+
   assert(
-    aliceDocs.length === 1,
-    '9a. MongoDB has exactly 1 document for TestAlice (no duplicates created on movement)'
+    c2Move.username === 'TestAlice' && c2Move.x === 90 && c2Move.y === 95 && c2Move.socketId === client1.id,
+    '7a. Client 2 in Room 1 receives avatar:moved event with updated coordinates'
   );
+  assert(!c1SawOwnEcho, '7b. Originating Client 1 does not receive its own echo on movement');
+  assert(!c3SawRoom1Move, '7c. Client 3 in Room 2 does NOT receive movement events from Room 1');
+
+  // 8. Throttled MongoDB Persistence (max once per second per user)
+  if (isMongoConnected) {
+    // Fire 5 moves in rapid succession (< 100ms)
+    client1.emit('avatar:move', { x: 100, y: 100 });
+    client1.emit('avatar:move', { x: 110, y: 110 });
+    client1.emit('avatar:move', { x: 120, y: 120 });
+    client1.emit('avatar:move', { x: 130, y: 130 });
+    client1.emit('avatar:move', { x: 150, y: 160 });
+
+    // Wait for the trailing throttle timer to trigger (1100ms)
+    await new Promise((r) => setTimeout(r, 1200));
+
+    const aliceDoc = await User.findById(c1Joined.avatarId);
+    assert(
+      aliceDoc &&
+        aliceDoc.location.coordinates[0] === 150 &&
+        aliceDoc.location.coordinates[1] === 160,
+      '8. Rapid movement writes are throttled to max 1/sec and trailing timer persists final position [150, 160]'
+    );
+  } else {
+    console.log('ℹ️ [SKIPPED] 8. Throttled DB write test (requires MongoDB)');
+  }
+
+  // 9. Distinct User Identity for Duplicate Usernames
+  const client4 = createClient();
+  await new Promise((resolve) => client4.on('connect', resolve));
+
+  const c4JoinedPromise = new Promise((resolve) => client4.once('avatar:joined', resolve));
+  // Client 4 joins with the SAME username 'TestAlice'
+  client4.emit('avatar:join', { username: 'TestAlice', x: 10, y: 10, roomId: room1Id });
+  const c4Joined = await c4JoinedPromise;
+
   assert(
-    aliceDocs[0].location.coordinates[0] === 75 && aliceDocs[0].location.coordinates[1] === 85,
-    '9b. MongoDB coordinates persisted accurately: [75, 85]'
+    c4Joined.username === 'TestAlice' &&
+      c4Joined.avatarId !== c1Joined.avatarId &&
+      c4Joined.socketId === client4.id,
+    '9a. Two concurrent connections with same username "TestAlice" get distinct avatarIds and socketIds'
   );
 
-  // 8. Test disconnection and avatar:left emission
-  const client2LeftPromise = new Promise((resolve) => {
-    client2.on('avatar:left', resolve);
-  });
+  if (isMongoConnected) {
+    const aliceDocs = await User.find({ username: 'TestAlice', isOnline: true });
+    assert(
+      aliceDocs.length === 2,
+      '9b. MongoDB maintains distinct records for concurrent users with identical usernames (no overwrite)'
+    );
+  }
 
+  // 10. Invalid Input and Coordinates Rejection
+  const errorPromise = new Promise((resolve) => client4.once('error', resolve));
+  client4.emit('avatar:move', { x: 'not-a-number', y: 50 });
+  const err = await errorPromise;
+  assert(
+    err && err.message.includes('Invalid coordinates'),
+    '10a. Invalid non-numeric coordinates trigger error event without crashing server'
+  );
+
+  const errorRoomPromise = new Promise((resolve) => client4.once('error', resolve));
+  client4.emit('avatar:join', { username: 'TestDave', x: 20, y: 20, roomId: '' });
+  const errRoom = await errorRoomPromise;
+  assert(
+    errRoom && errRoom.message.includes('Room ID is required'),
+    '10b. Empty roomId triggers error event'
+  );
+
+  // 11. Week 2 WebRTC Signaling Relay
+  const offerPromise = new Promise((resolve) => client2.once('signal:offer', resolve));
+  client1.emit('signal:offer', { toSocketId: client2.id, offer: { type: 'offer', sdp: 'dummy-sdp-offer' } });
+  const receivedOffer = await offerPromise;
+  assert(
+    receivedOffer.fromSocketId === client1.id &&
+      receivedOffer.fromAvatarId === c1Joined.avatarId &&
+      receivedOffer.offer.sdp === 'dummy-sdp-offer',
+    '11a. signal:offer relayed successfully to peer in same room'
+  );
+
+  const answerPromise = new Promise((resolve) => client1.once('signal:answer', resolve));
+  client2.emit('signal:answer', { toSocketId: client1.id, answer: { type: 'answer', sdp: 'dummy-sdp-answer' } });
+  const receivedAnswer = await answerPromise;
+  assert(
+    receivedAnswer.fromSocketId === client2.id && receivedAnswer.answer.sdp === 'dummy-sdp-answer',
+    '11b. signal:answer relayed successfully back to peer'
+  );
+
+  const icePromise = new Promise((resolve) => client2.once('signal:ice', resolve));
+  client1.emit('signal:ice', { toSocketId: client2.id, candidate: { candidate: 'candidate:1' } });
+  const receivedIce = await icePromise;
+  assert(
+    receivedIce.fromSocketId === client1.id && receivedIce.candidate.candidate === 'candidate:1',
+    '11c. signal:ice relayed successfully to peer'
+  );
+
+  const crossRoomErrPromise = new Promise((resolve) => client3.once('error', resolve));
+  client3.emit('signal:offer', { toSocketId: client1.id, offer: { test: true } });
+  const crossErr = await crossRoomErrPromise;
+  assert(
+    crossErr && crossErr.message.includes('Target peer not found in this room'),
+    '11d. Cross-room WebRTC signaling attempt is blocked and emits error'
+  );
+
+  // 12. Disconnect & Cleanup
+  const leavePromise = new Promise((resolve) => client2.once('avatar:left', resolve));
   client1.disconnect();
+  const leftData = await leavePromise;
 
-  const c2LeftData = await client2LeftPromise;
   assert(
-    c2LeftData.username === 'TestAlice',
-    '8a. Remaining client receives avatar:left event when Client 1 disconnects'
+    leftData.avatarId === c1Joined.avatarId &&
+      leftData.socketId === c1Joined.socketId &&
+      leftData.roomId === room1Id,
+    '12a. Remaining client in Room 1 receives avatar:left event with consistent payload'
   );
 
-  // Verify MongoDB updated isOnline status
-  await new Promise((r) => setTimeout(r, 200));
-  const aliceAfterDisconnect = await User.findOne({ username: 'TestAlice' });
-  assert(
-    aliceAfterDisconnect && aliceAfterDisconnect.isOnline === false,
-    '8b. MongoDB user status updated to isOnline: false after disconnect'
-  );
+  if (isMongoConnected) {
+    await new Promise((r) => setTimeout(r, 200));
+    const aliceFinal = await User.findById(c1Joined.avatarId);
+    assert(
+      aliceFinal && aliceFinal.isOnline === false && aliceFinal.socketId === null,
+      '12b. MongoDB records marked isOnline: false and socketId: null on disconnect'
+    );
+  }
 
-  // Clean up
+  // Teardown
   client2.disconnect();
-  await new Promise((r) => setTimeout(r, 150));
-  await User.deleteMany({ username: { $in: ['TestAlice', 'TestBob'] } });
-  server.close();
-  await mongoose.disconnect();
+  client3.disconnect();
+  client4.disconnect();
+  await new Promise((r) => setTimeout(r, 200));
 
-  console.log('--- Test Suite Summary ---');
+  if (isMongoConnected) {
+    await User.deleteMany({ username: { $in: ['TestAlice', 'TestBob', 'TestCharlie', 'TestDave'] } });
+    await Room.deleteMany({ name: { $in: ['TestRoomAlpha', 'TestRoomBeta'] } });
+    await mongoose.disconnect();
+  }
+
+  server.close();
+
+  console.log('\n--- Test Suite Summary ---');
   console.log(`Passed: ${passedCount} | Failed: ${failedCount}`);
 
   if (failedCount === 0) {
-    console.log('🎉 ALL CHECKS PASSED SUCCESSFULLY!');
+    console.log('🎉 ALL PROXISPEAK SOCKET CHECKS PASSED SUCCESSFULLY!');
     process.exit(0);
   } else {
     console.error('⚠️ SOME CHECKS FAILED!');

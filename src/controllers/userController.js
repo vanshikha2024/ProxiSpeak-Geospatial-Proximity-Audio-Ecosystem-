@@ -1,4 +1,5 @@
 import User from '../models/User.js';
+import { DEFAULT_AUDIO_RADIUS } from '../config/constants.js';
 
 /**
  * Helper to compute Euclidean distance between two 2D points [x1, y1] and [x2, y2]
@@ -33,7 +34,7 @@ export const getNearbyUsers = async (req, res) => {
 
     const x = parseFloat(rawX);
     const y = parseFloat(rawY);
-    const maxDistance = rawRadius !== undefined ? parseFloat(rawRadius) : 100;
+    const maxDistance = rawRadius !== undefined ? parseFloat(rawRadius) : DEFAULT_AUDIO_RADIUS;
 
     if (!Number.isFinite(x) || !Number.isFinite(y)) {
       return res.status(400).json({

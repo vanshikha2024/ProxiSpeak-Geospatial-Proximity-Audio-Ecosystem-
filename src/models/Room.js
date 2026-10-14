@@ -1,4 +1,10 @@
 import mongoose from 'mongoose';
+import {
+  DEFAULT_AUDIO_RADIUS,
+  DEFAULT_ROOM_WIDTH,
+  DEFAULT_ROOM_HEIGHT,
+  DEFAULT_ROOM_CAPACITY,
+} from '../config/constants.js';
 
 /**
  * Room / Office Schema for ProxiSpeak
@@ -22,25 +28,25 @@ const roomSchema = new mongoose.Schema(
     dimensions: {
       width: {
         type: Number,
-        default: 1920,
+        default: DEFAULT_ROOM_WIDTH,
         min: [100, 'Width must be at least 100'],
       },
       height: {
         type: Number,
-        default: 1080,
+        default: DEFAULT_ROOM_HEIGHT,
         min: [100, 'Height must be at least 100'],
       },
     },
     // Proximity audio radius in pixels
     audioRadius: {
       type: Number,
-      default: 100,
+      default: DEFAULT_AUDIO_RADIUS,
       min: [10, 'Audio radius must be at least 10'],
       max: [1000, 'Audio radius cannot exceed 1000'],
     },
     capacity: {
       type: Number,
-      default: 50,
+      default: DEFAULT_ROOM_CAPACITY,
       min: [2, 'Capacity must be at least 2'],
     },
     isPrivate: {
