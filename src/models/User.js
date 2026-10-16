@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 
 /**
  * User / Avatar Schema for ProxiSpeak
- * Supports 2D map space coordinates [x, y] with a 2dsphere index for proximity ($near) queries.
+ * Supports 2D map space coordinates [x, y] with a planar 2d index for proximity ($near) queries.
  */
 const userSchema = new mongoose.Schema(
   {
