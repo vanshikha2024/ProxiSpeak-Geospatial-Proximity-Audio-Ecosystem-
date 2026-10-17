@@ -36,6 +36,7 @@ export function usePeerConnections({ socket, myId, nearbyIds, localStream }) {
   const myIdRef = useRef(myId);
   const nearbyRef = useRef(nearbyIds);
   const localStreamRef = useRef(localStream);
+  const closePeerRef = useRef(() => {}); // lets createPeer call closePeer
 
   // Keep the refs fresh, so the functions below always see current values.
   useEffect(() => {
@@ -81,6 +82,10 @@ export function usePeerConnections({ socket, myId, nearbyIds, localStream }) {
 
       pc.onconnectionstatechange = () => {
         setPeerStates((prev) => ({ ...prev, [id]: pc.connectionState }));
+
+        // A failed connection is useless. Close it; if we are still near
+        // each other, the once-per-second sync below will try again.
+        if (pc.connectionState === "failed") closePeerRef.current(id);
       };
 
       setPeerStates((prev) => ({ ...prev, [id]: "connecting" }));
@@ -108,6 +113,11 @@ export function usePeerConnections({ socket, myId, nearbyIds, localStream }) {
     setRemoteStreams(without);
     setPeerStates(without);
   }, []);
+
+  // Keep a ref to closePeer (used by the "failed" handler above).
+  useEffect(() => {
+    closePeerRef.current = closePeer;
+  }, [closePeer]);
 
   // Add the ICE candidates that arrived too early.
   async function flushCandidates(peer) {

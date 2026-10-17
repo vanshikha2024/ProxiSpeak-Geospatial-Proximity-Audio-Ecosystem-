@@ -27,6 +27,11 @@ const users = new Map();
 
 const DEFAULT_ROOM = "main-office";
 
+// People hear each other within 100 px (the browser connects at 100 and
+// disconnects at 120). The server allows signaling up to 150 px, which
+// leaves room for small network delays between the browsers.
+const SIGNAL_MAX_DISTANCE = 150;
+
 // Clean text that comes from the browser (never trust it).
 function cleanName(value) {
   const name = String(value || "").trim().slice(0, 20);
@@ -115,6 +120,10 @@ io.on("connection", (socket) => {
 
       // Only people who joined the SAME room may talk to each other.
       if (!sender || !target || sender.room !== target.room) return;
+
+      // ...and only if they are close to each other on the map.
+      const gap = Math.hypot(sender.x - target.x, sender.y - target.y);
+      if (gap > SIGNAL_MAX_DISTANCE) return;
 
       io.to(data.to).emit(eventName, { from: socket.id, [key]: data[key] });
     });

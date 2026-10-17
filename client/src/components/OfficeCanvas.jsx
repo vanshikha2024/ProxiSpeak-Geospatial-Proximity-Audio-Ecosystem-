@@ -10,6 +10,7 @@ import { useKeyboard } from "../hooks/useKeyboard";
 import { EVENTS } from "../network/events";
 import { getNearbyUsers } from "../utils/proximity";
 import {
+  AUDIO_LEAVE_RADIUS,
   AUDIO_RADIUS,
   EDGE,
   HEIGHT,
@@ -38,6 +39,7 @@ export default function OfficeCanvas({
   const lastSentTimeRef = useRef(0); // when I last sent my position
   const lastSentPosRef = useRef({ x: 100, y: 100 }); // what I last sent
   const displayRef = useRef(new Map()); // smoothed positions of OTHER users
+  const nearbyIdsRef = useRef(new Set()); // who was nearby in the last frame
   const keysRef = useKeyboard();
 
   const [position, setPosition] = useState({ x: 100, y: 100 });
@@ -131,11 +133,18 @@ export default function OfficeCanvas({
 
         // Who is inside my audio radius? (uses the positions we DRAW)
         const others = drawList.filter((user) => user.id !== myId);
-        const nearbyList = getNearbyUsers(current, others, AUDIO_RADIUS);
+        const nearbyList = getNearbyUsers(
+          current,
+          others,
+          AUDIO_RADIUS,
+          nearbyIdsRef.current, // people already nearby get extra room...
+          AUDIO_LEAVE_RADIUS // ...up to this distance
+        );
+        nearbyIdsRef.current = new Set(nearbyList.map((user) => user.id));
 
         drawOffice(ctx, drawList, myId, {
           audioRadius: AUDIO_RADIUS,
-          nearbyIds: new Set(nearbyList.map((user) => user.id)),
+          nearbyIds: nearbyIdsRef.current,
         });
 
         // Tell the parent (App) who is nearby - at most 4 times per second,

@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------
 // components/NearbyPanel.jsx - shows who is inside my audio radius.
 // ---------------------------------------------------------------
-import { AUDIO_RADIUS } from "../config";
+import { AUDIO_LEAVE_RADIUS, AUDIO_RADIUS } from "../config";
 
 // Friendly text for the WebRTC connection state.
 const STATE_LABELS = {
@@ -16,7 +16,9 @@ export default function NearbyPanel({ nearby, peerStates = {} }) {
     <div className="nearby-panel">
       <h3>
         In earshot ({nearby.length})
-        <span> within {AUDIO_RADIUS}px</span>
+        <span>
+          connect within {AUDIO_RADIUS}px, drop after {AUDIO_LEAVE_RADIUS}px
+        </span>
       </h3>
 
       {nearby.length === 0 ? (

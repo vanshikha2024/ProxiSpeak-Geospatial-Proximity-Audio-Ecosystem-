@@ -39,3 +39,21 @@ test("a missing name becomes Guest", () => {
   const result = getNearbyUsers({ x: 0, y: 0 }, [{ id: "x", x: 1, y: 1 }], 100);
   assert.equal(result[0].name, "Guest");
 });
+
+test("a new user at 110 px is NOT nearby yet (must come within 100)", () => {
+  const others = [{ id: "u", x: 110, y: 0 }];
+  const result = getNearbyUsers({ x: 0, y: 0 }, others, 100, new Set(), 120);
+  assert.equal(result.length, 0);
+});
+
+test("a user who was nearby stays nearby until the leave radius", () => {
+  const others = [{ id: "u", x: 110, y: 0 }]; // 110 px: past 100, inside 120
+  const result = getNearbyUsers({ x: 0, y: 0 }, others, 100, new Set(["u"]), 120);
+  assert.equal(result.length, 1);
+});
+
+test("a user who was nearby is dropped beyond the leave radius", () => {
+  const others = [{ id: "u", x: 130, y: 0 }]; // past 120
+  const result = getNearbyUsers({ x: 0, y: 0 }, others, 100, new Set(["u"]), 120);
+  assert.equal(result.length, 0);
+});

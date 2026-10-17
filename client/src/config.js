@@ -21,6 +21,10 @@ export const SEND_EVERY_MS = 50;
 // The project document says 100 pixels.
 export const AUDIO_RADIUS = 100;
 
+// Once connected, we only disconnect when someone is farther than this.
+// (A little bigger than AUDIO_RADIUS so connections do not flicker.)
+export const AUDIO_LEAVE_RADIUS = 120;
+
 // Where the backend server lives.
 // Set VITE_SERVER_URL in client/.env (see .env.example).
 // If it is not set, we use the local server on port 5000.
