@@ -95,6 +95,31 @@ io.on("connection", (socket) => {
     broadcastRoom(user.room);
   });
 
+  // ---------- WebRTC signaling ----------
+  // Browsers cannot find each other alone. They send small "signal"
+  // messages (offer, answer, ICE candidate) to the server and the server
+  // passes each message to the person it is meant for.
+  // The audio itself NEVER goes through the server (peer-to-peer).
+  const SIGNALS = [
+    ["signal:offer", "offer"],
+    ["signal:answer", "answer"],
+    ["signal:ice", "candidate"],
+  ];
+
+  SIGNALS.forEach(([eventName, key]) => {
+    socket.on(eventName, (data) => {
+      if (!data || typeof data.to !== "string") return;
+
+      const sender = users.get(socket.id);
+      const target = users.get(data.to);
+
+      // Only people who joined the SAME room may talk to each other.
+      if (!sender || !target || sender.room !== target.room) return;
+
+      io.to(data.to).emit(eventName, { from: socket.id, [key]: data[key] });
+    });
+  });
+
   socket.on("disconnect", () => {
     removeUser(socket);
     console.log(`User disconnected: ${socket.id}`);

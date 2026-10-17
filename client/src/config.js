@@ -26,3 +26,7 @@ export const AUDIO_RADIUS = 100;
 // If it is not set, we use the local server on port 5000.
 export const SERVER_URL =
   import.meta.env.VITE_SERVER_URL || "http://localhost:5000";
+
+// STUN servers help two browsers find a path to each other (NAT traversal).
+// On one computer / one Wi-Fi it works even without them.
+export const ICE_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];

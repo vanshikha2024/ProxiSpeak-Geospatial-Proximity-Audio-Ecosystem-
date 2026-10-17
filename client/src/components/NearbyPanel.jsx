@@ -3,7 +3,15 @@
 // ---------------------------------------------------------------
 import { AUDIO_RADIUS } from "../config";
 
-export default function NearbyPanel({ nearby }) {
+// Friendly text for the WebRTC connection state.
+const STATE_LABELS = {
+  connecting: "connecting...",
+  connected: "🔊 voice connected",
+  disconnected: "connection lost",
+  failed: "connection failed",
+};
+
+export default function NearbyPanel({ nearby, peerStates = {} }) {
   return (
     <div className="nearby-panel">
       <h3>
@@ -18,7 +26,9 @@ export default function NearbyPanel({ nearby }) {
           {nearby.map((user) => (
             <li key={user.id}>
               <span>{user.name}</span>
-              <span className="muted">{user.distance}px</span>
+              <span className="muted">
+                {STATE_LABELS[peerStates[user.id]] || "waiting"} · {user.distance}px
+              </span>
             </li>
           ))}
         </ul>

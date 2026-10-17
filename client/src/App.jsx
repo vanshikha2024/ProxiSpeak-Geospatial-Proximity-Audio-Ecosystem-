@@ -2,14 +2,16 @@
 // App.jsx - puts the pieces together.
 // (All the heavy work lives in hooks/ and components/.)
 // ---------------------------------------------------------------
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import "./App.css";
 import JoinScreen from "./components/JoinScreen";
 import NearbyPanel from "./components/NearbyPanel";
 import OfficeCanvas from "./components/OfficeCanvas";
+import RemoteAudio from "./components/RemoteAudio";
 import TopBar from "./components/TopBar";
 import VoiceControls from "./components/VoiceControls";
 import { useMicrophone } from "./hooks/useMicrophone";
+import { usePeerConnections } from "./hooks/usePeerConnections";
 import { useSocket } from "./hooks/useSocket";
 
 export default function App() {
@@ -30,6 +32,17 @@ export default function App() {
 
   // Who is inside my audio radius: [{ id, name, distance }]
   const [nearby, setNearby] = useState([]);
+
+  // Just the ids of the nearby people (the hook only needs ids).
+  const nearbyIds = useMemo(() => nearby.map((user) => user.id), [nearby]);
+
+  // WebRTC: connect my microphone to the people in my audio radius.
+  const { remoteStreams, peerStates } = usePeerConnections({
+    socket,
+    myId,
+    nearbyIds,
+    localStream: mic.stream,
+  });
 
   return (
     <main className="page">
@@ -63,7 +76,8 @@ export default function App() {
           />
 
           <VoiceControls mic={mic} />
-          <NearbyPanel nearby={nearby} />
+          <NearbyPanel nearby={nearby} peerStates={peerStates} />
+          <RemoteAudio streams={remoteStreams} />
         </section>
       )}
     </main>
