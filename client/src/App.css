@@ -258,3 +258,58 @@ body {
   color: #687087;
   font-size: 13px;
 }
+
+/* ---------- Day 7: voice controls ---------- */
+.voice-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.voice-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.btn {
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: bold;
+  color: #20263a;
+  background: white;
+  border: 1px solid #d3dbec;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.btn.primary {
+  color: white;
+  background: #635bdb;
+  border-color: #635bdb;
+}
+
+.btn.danger {
+  color: #b91c1c;
+  border-color: #f3c4c4;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.meter {
+  width: 160px;
+  height: 10px;
+  overflow: hidden;
+  background: #e5e9f4;
+  border-radius: 999px;
+}
+
+.meter-fill {
+  height: 100%;
+  background: #22c55e;
+  transition: width 0.1s linear;
+}

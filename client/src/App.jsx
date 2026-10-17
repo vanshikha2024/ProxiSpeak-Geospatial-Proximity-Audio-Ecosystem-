@@ -8,6 +8,8 @@ import JoinScreen from "./components/JoinScreen";
 import NearbyPanel from "./components/NearbyPanel";
 import OfficeCanvas from "./components/OfficeCanvas";
 import TopBar from "./components/TopBar";
+import VoiceControls from "./components/VoiceControls";
+import { useMicrophone } from "./hooks/useMicrophone";
 import { useSocket } from "./hooks/useSocket";
 
 export default function App() {
@@ -22,6 +24,9 @@ export default function App() {
     profile,
     join,
   } = useSocket();
+
+  // My microphone (the next days send this audio to nearby people).
+  const mic = useMicrophone();
 
   // Who is inside my audio radius: [{ id, name, distance }]
   const [nearby, setNearby] = useState([]);
@@ -57,6 +62,7 @@ export default function App() {
             onNearbyChange={setNearby}
           />
 
+          <VoiceControls mic={mic} />
           <NearbyPanel nearby={nearby} />
         </section>
       )}
