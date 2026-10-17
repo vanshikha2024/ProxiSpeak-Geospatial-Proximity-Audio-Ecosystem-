@@ -10,8 +10,10 @@
 //   usersRef  - the same list in a ref (for the 60-FPS game loop)
 //   myId      - my own socket id
 //   spawn     - { x, y } where the server placed me (set once per connection)
+//   profile   - { username, roomId } after I joined, otherwise null
+//   join      - join(username, roomId): enter an office
 // ---------------------------------------------------------------
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import socket from "../network/socket";
 import { EVENTS } from "../network/events";
 
@@ -21,15 +23,20 @@ export function useSocket() {
   const [users, setUsers] = useState([]);
   const [myId, setMyId] = useState("");
   const [spawn, setSpawn] = useState(null);
+  const [profile, setProfile] = useState(null);
 
   const usersRef = useRef([]);
   const spawnedRef = useRef(false); // did I already receive my start position?
+  const profileRef = useRef(null); // who I am (used to re-join after reconnect)
 
   useEffect(() => {
     function onConnect() {
       setMyId(socket.id);
       setConnected(true);
       setConnectError("");
+
+      // After a reconnect the server forgot me, so join again.
+      if (profileRef.current) socket.emit(EVENTS.JOIN, profileRef.current);
     }
 
     // Called when the server cannot be reached (server off, wrong URL...)
@@ -73,5 +80,25 @@ export function useSocket() {
     };
   }, []);
 
-  return { socket, connected, connectError, users, usersRef, myId, spawn };
+  // Called by the join screen.
+  const join = useCallback((username, roomId) => {
+    const nextProfile = { username, roomId };
+    profileRef.current = nextProfile;
+    spawnedRef.current = false; // wait for a fresh spawn position
+    setSpawn(null);
+    setProfile(nextProfile);
+    if (socket.connected) socket.emit(EVENTS.JOIN, nextProfile);
+  }, []);
+
+  return {
+    socket,
+    connected,
+    connectError,
+    users,
+    usersRef,
+    myId,
+    spawn,
+    profile,
+    join,
+  };
 }

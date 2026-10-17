@@ -16,6 +16,10 @@ export function useKeyboard() {
     const keys = keysRef.current;
 
     function onKeyDown(event) {
+      // Do not steal keys while the person is typing in a text box.
+      const tag = event.target.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+
       const key = event.key.toLowerCase();
       if (!MOVE_KEYS.includes(key)) return;
       event.preventDefault(); // stop arrow keys from scrolling the page

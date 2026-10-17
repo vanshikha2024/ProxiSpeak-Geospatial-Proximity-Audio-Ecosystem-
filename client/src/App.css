@@ -154,3 +154,64 @@ body {
   color: #b91c1c;
   font-size: 13px;
 }
+
+/* ---------- Day 5: join screen ---------- */
+.join-card {
+  max-width: 420px;
+  margin: 40px auto;
+  padding: 28px;
+  background: white;
+  border: 1px solid #e0e6f2;
+  border-radius: 22px;
+  box-shadow: 0 10px 36px #1b264010;
+}
+
+.join-card h2 {
+  margin: 0 0 6px;
+}
+
+.join-card p {
+  color: #687087;
+}
+
+.join-form {
+  display: grid;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.join-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: bold;
+  color: #3b4258;
+}
+
+.join-form input {
+  padding: 12px 14px;
+  font-size: 15px;
+  border: 1px solid #d3dbec;
+  border-radius: 12px;
+}
+
+.join-form input:focus {
+  outline: 2px solid #635bdb55;
+  border-color: #635bdb;
+}
+
+.join-form button {
+  padding: 13px;
+  font-size: 15px;
+  font-weight: bold;
+  color: white;
+  background: #635bdb;
+  border: 0;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.join-form button:disabled {
+  background: #a5a9cf;
+  cursor: not-allowed;
+}

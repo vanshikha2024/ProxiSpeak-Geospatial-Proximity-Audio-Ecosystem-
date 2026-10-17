@@ -3,7 +3,12 @@
 // It only draws; it does not move anything or talk to the server.
 // ---------------------------------------------------------------
 import { WIDTH, HEIGHT, RADIUS } from "../config";
-export function drawoffice(ctx, users, myId) {
+
+// ---------------------------------------------------------------
+// drawOffice: paints ONE frame on the canvas.
+// It is called ~60 times per second.
+// ---------------------------------------------------------------
+export function drawOffice(ctx, users, myId) {
   ctx.clearRect(0, 0, WIDTH, HEIGHT);
 
   // Office floor
@@ -61,9 +66,11 @@ export function drawoffice(ctx, users, myId) {
   ctx.roundRect(430, 215, 160, 24, 12);
   ctx.fill();
 
-  // Avatars: a light outer circle + a darker inner circle + a label
-  users.forEach((user, index) => {
+  // Avatars: a light outer circle + a darker inner circle,
+  // the first letter of the name inside, and the full name above.
+  users.forEach((user) => {
     const isMe = user.id === myId;
+    const name = user.name || "Guest";
 
     ctx.beginPath();
     ctx.arc(user.x, user.y, RADIUS + 4, 0, Math.PI * 2);
@@ -75,11 +82,17 @@ export function drawoffice(ctx, users, myId) {
     ctx.fillStyle = isMe ? "#635bdb" : "#64748b";
     ctx.fill();
 
+    // First letter inside the circle
     ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 10px Arial";
+    ctx.font = "bold 13px Arial";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(isMe ? "YOU" : `P${index + 1}`, user.x, user.y);
+    ctx.fillText(name.charAt(0).toUpperCase(), user.x, user.y);
+
+    // Name above the circle
+    ctx.fillStyle = "#334155";
+    ctx.font = "bold 11px Arial";
+    ctx.fillText(isMe ? `${name} (you)` : name, user.x, user.y - RADIUS - 12);
   });
 
   // Reset text settings so the next frame starts clean

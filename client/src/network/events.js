@@ -6,6 +6,7 @@
 // ---------------------------------------------------------------
 export const EVENTS = {
   // Client -> Server
+  JOIN: "user:join", // { username, roomId }
   POSITION_UPDATE: "position:update", // { x, y }
 
   // Server -> Client
