@@ -1,4 +1,6 @@
+import mongoose from 'mongoose';
 import User from '../models/User.js';
+import Room from '../models/Room.js';
 import { DEFAULT_AUDIO_RADIUS } from '../config/constants.js';
 
 /**
@@ -32,9 +34,15 @@ export const getNearbyUsers = async (req, res) => {
       });
     }
 
+    if (Array.isArray(rawX) || Array.isArray(rawY)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Query parameters x and y must be single values',
+      });
+    }
+
     const x = parseFloat(rawX);
     const y = parseFloat(rawY);
-    const maxDistance = rawRadius !== undefined ? parseFloat(rawRadius) : DEFAULT_AUDIO_RADIUS;
 
     if (!Number.isFinite(x) || !Number.isFinite(y)) {
       return res.status(400).json({
@@ -42,6 +50,22 @@ export const getNearbyUsers = async (req, res) => {
         message: 'Query parameters x and y must be valid finite numbers',
       });
     }
+
+    if (x < 0 || y < 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Coordinates x and y cannot be negative',
+      });
+    }
+
+    if (Array.isArray(rawRadius)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Query parameter maxDistance/radius must be a single value',
+      });
+    }
+
+    const maxDistance = rawRadius !== undefined ? parseFloat(rawRadius) : DEFAULT_AUDIO_RADIUS;
 
     if (!Number.isFinite(maxDistance) || maxDistance <= 0) {
       return res.status(400).json({
@@ -56,10 +80,33 @@ export const getNearbyUsers = async (req, res) => {
     };
 
     if (roomId) {
+      if (!mongoose.Types.ObjectId.isValid(roomId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid roomId format',
+        });
+      }
+
+      if (mongoose.connection.readyState === 1) {
+        const roomExists = await Room.exists({ _id: roomId });
+        if (!roomExists) {
+          return res.status(404).json({
+            success: false,
+            message: 'Room not found',
+          });
+        }
+      }
+
       filter.roomId = roomId;
     }
 
     if (excludeId) {
+      if (!mongoose.Types.ObjectId.isValid(excludeId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid excludeId format',
+        });
+      }
       filter._id = { $ne: excludeId };
     }
 
@@ -75,29 +122,31 @@ export const getNearbyUsers = async (req, res) => {
           $maxDistance: maxDistance,
         },
       })
-        .select('username avatarUrl location isOnline roomId socketId updatedAt')
+        .select('username avatarUrl location isOnline roomId')
         .lean();
 
-      nearbyUsers = usersInScope.map((u) => {
-        const uX = u.location?.coordinates?.[0] ?? 0;
-        const uY = u.location?.coordinates?.[1] ?? 0;
-        const distance = calculateEuclideanDistance(x, y, uX, uY);
-        return {
-          avatarId: u._id,
-          username: u.username,
-          avatarUrl: u.avatarUrl,
-          x: uX,
-          y: uY,
-          distance: Math.round(distance * 100) / 100,
-          inAudioRange: distance <= maxDistance,
-          roomId: u.roomId,
-          isOnline: u.isOnline,
-        };
-      });
+      nearbyUsers = usersInScope
+        .map((u) => {
+          const uX = u.location?.coordinates?.[0] ?? 0;
+          const uY = u.location?.coordinates?.[1] ?? 0;
+          const distance = calculateEuclideanDistance(x, y, uX, uY);
+          return {
+            avatarId: u._id,
+            username: u.username,
+            avatarUrl: u.avatarUrl,
+            x: uX,
+            y: uY,
+            distance: Math.round(distance * 100) / 100,
+            inAudioRange: distance <= maxDistance,
+            roomId: u.roomId,
+            isOnline: u.isOnline,
+          };
+        })
+        .filter((u) => u.distance <= maxDistance);
     } catch (geoError) {
       // In case 2d index is indexing or planar distance fallback
       const onlineUsers = await User.find(filter)
-        .select('username avatarUrl location isOnline roomId socketId updatedAt')
+        .select('username avatarUrl location isOnline roomId')
         .lean();
 
       nearbyUsers = onlineUsers
