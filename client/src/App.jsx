@@ -2,8 +2,10 @@
 // App.jsx - puts the pieces together.
 // (All the heavy work lives in hooks/ and components/.)
 // ---------------------------------------------------------------
+import { useState } from "react";
 import "./App.css";
 import JoinScreen from "./components/JoinScreen";
+import NearbyPanel from "./components/NearbyPanel";
 import OfficeCanvas from "./components/OfficeCanvas";
 import TopBar from "./components/TopBar";
 import { useSocket } from "./hooks/useSocket";
@@ -20,6 +22,9 @@ export default function App() {
     profile,
     join,
   } = useSocket();
+
+  // Who is inside my audio radius: [{ id, name, distance }]
+  const [nearby, setNearby] = useState([]);
 
   return (
     <main className="page">
@@ -49,7 +54,10 @@ export default function App() {
             usersRef={usersRef}
             myId={myId}
             spawn={spawn}
+            onNearbyChange={setNearby}
           />
+
+          <NearbyPanel nearby={nearby} />
         </section>
       )}
     </main>

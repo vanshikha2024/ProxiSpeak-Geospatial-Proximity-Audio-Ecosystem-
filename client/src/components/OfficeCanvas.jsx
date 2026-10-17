@@ -8,7 +8,9 @@ import { useEffect, useRef, useState } from "react";
 import { drawOffice } from "../canvas/drawOffice";
 import { useKeyboard } from "../hooks/useKeyboard";
 import { EVENTS } from "../network/events";
+import { getNearbyUsers } from "../utils/proximity";
 import {
+  AUDIO_RADIUS,
   EDGE,
   HEIGHT,
   SEND_EVERY_MS,
@@ -27,6 +29,7 @@ export default function OfficeCanvas({
   usersRef,
   myId,
   spawn,
+  onNearbyChange,
 }) {
   // Refs store values WITHOUT re-rendering React (good for fast changes).
   const canvasRef = useRef(null);
@@ -55,6 +58,8 @@ export default function OfficeCanvas({
     let frameId;
     let previousTime = 0;
     let lastUiUpdate = 0;
+    let lastNearbyCheck = 0;
+    let lastNearbyKey = "";
 
     function animate(time) {
       // dt = seconds since the last frame (capped so lag does not teleport me)
@@ -124,7 +129,29 @@ export default function OfficeCanvas({
           if (!stillHere.has(id)) display.delete(id);
         }
 
-        drawOffice(ctx, drawList, myId);
+        // Who is inside my audio radius? (uses the positions we DRAW)
+        const others = drawList.filter((user) => user.id !== myId);
+        const nearbyList = getNearbyUsers(current, others, AUDIO_RADIUS);
+
+        drawOffice(ctx, drawList, myId, {
+          audioRadius: AUDIO_RADIUS,
+          nearbyIds: new Set(nearbyList.map((user) => user.id)),
+        });
+
+        // Tell the parent (App) who is nearby - at most 4 times per second,
+        // and only when the list really changed.
+        if (time - lastNearbyCheck >= 250) {
+          lastNearbyCheck = time;
+          const rounded = nearbyList.map((user) => ({
+            ...user,
+            distance: Math.round(user.distance / 5) * 5, // steady numbers
+          }));
+          const key = JSON.stringify(rounded);
+          if (key !== lastNearbyKey) {
+            lastNearbyKey = key;
+            onNearbyChange(rounded);
+          }
+        }
       }
 
       // 3) SEND MY POSITION --------------------------------------
@@ -153,7 +180,7 @@ export default function OfficeCanvas({
 
     frameId = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(frameId);
-  }, [connected, socket, usersRef, myId, keysRef]);
+  }, [connected, socket, usersRef, myId, keysRef, onNearbyChange]);
 
   // ---------- Mouse: click anywhere to walk there ----------
   function handleCanvasClick(event) {

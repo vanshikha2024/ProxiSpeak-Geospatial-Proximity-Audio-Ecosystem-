@@ -17,6 +17,10 @@ export const SPEED = 180;
 // Send my position at most every 50 ms (= 20 times per second)
 export const SEND_EVERY_MS = 50;
 
+// How close (in pixels) another avatar must be for us to hear each other.
+// The project document says 100 pixels.
+export const AUDIO_RADIUS = 100;
+
 // Where the backend server lives.
 // Set VITE_SERVER_URL in client/.env (see .env.example).
 // If it is not set, we use the local server on port 5000.

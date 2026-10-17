@@ -215,3 +215,46 @@ body {
   background: #a5a9cf;
   cursor: not-allowed;
 }
+
+/* ---------- Day 6: nearby panel ---------- */
+.nearby-panel {
+  margin-top: 18px;
+  padding: 16px 18px;
+  background: #f8fafc;
+  border: 1px solid #e0e6f2;
+  border-radius: 14px;
+}
+
+.nearby-panel h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+
+.nearby-panel h3 span {
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: normal;
+  color: #687087;
+}
+
+.nearby-panel ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nearby-panel li {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: white;
+  border-radius: 10px;
+}
+
+.muted {
+  margin: 0;
+  color: #687087;
+  font-size: 13px;
+}

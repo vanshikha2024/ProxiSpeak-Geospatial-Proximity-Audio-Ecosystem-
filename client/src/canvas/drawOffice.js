@@ -1,6 +1,10 @@
 // ---------------------------------------------------------------
 // canvas/drawOffice.js - everything that PAINTS the office.
 // It only draws; it does not move anything or talk to the server.
+//
+// options (all optional):
+//   audioRadius - draw a circle of this size around ME
+//   nearbyIds   - a Set of user ids to highlight with a green ring
 // ---------------------------------------------------------------
 import { WIDTH, HEIGHT, RADIUS } from "../config";
 
@@ -8,7 +12,8 @@ import { WIDTH, HEIGHT, RADIUS } from "../config";
 // drawOffice: paints ONE frame on the canvas.
 // It is called ~60 times per second.
 // ---------------------------------------------------------------
-export function drawOffice(ctx, users, myId) {
+export function drawOffice(ctx, users, myId, options = {}) {
+  const { audioRadius = 0, nearbyIds = new Set() } = options;
   ctx.clearRect(0, 0, WIDTH, HEIGHT);
 
   // Office floor
@@ -66,6 +71,20 @@ export function drawOffice(ctx, users, myId) {
   ctx.roundRect(430, 215, 160, 24, 12);
   ctx.fill();
 
+  // The audio radius: a soft circle around ME showing who can hear me.
+  const me = users.find((user) => user.id === myId);
+  if (me && audioRadius > 0) {
+    ctx.beginPath();
+    ctx.arc(me.x, me.y, audioRadius, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(99, 91, 219, 0.07)";
+    ctx.fill();
+    ctx.setLineDash([6, 6]);
+    ctx.strokeStyle = "rgba(99, 91, 219, 0.45)";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
   // Avatars: a light outer circle + a darker inner circle,
   // the first letter of the name inside, and the full name above.
   users.forEach((user) => {
@@ -81,6 +100,15 @@ export function drawOffice(ctx, users, myId) {
     ctx.arc(user.x, user.y, RADIUS, 0, Math.PI * 2);
     ctx.fillStyle = isMe ? "#635bdb" : "#64748b";
     ctx.fill();
+
+    // Green ring = this person is inside my audio radius
+    if (nearbyIds.has(user.id)) {
+      ctx.beginPath();
+      ctx.arc(user.x, user.y, RADIUS + 6, 0, Math.PI * 2);
+      ctx.strokeStyle = "#22c55e";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
 
     // First letter inside the circle
     ctx.fillStyle = "#ffffff";
