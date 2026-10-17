@@ -1,7 +1,9 @@
 // ---------------------------------------------------------------
 // components/TopBar.jsx - the title and the connection status.
 // ---------------------------------------------------------------
-export default function TopBar({ connected }) {
+import { SERVER_URL } from "../config";
+
+export default function TopBar({ connected, connectError }) {
   return (
     <header className="topbar">
       <div>
@@ -10,9 +12,18 @@ export default function TopBar({ connected }) {
         <p>Your virtual office, where conversations happen naturally.</p>
       </div>
 
-      <span className={`status ${connected ? "online" : ""}`}>
-        {connected ? "● Connected" : "○ Connecting..."}
-      </span>
+      <div className="status-box">
+        <span className={`status ${connected ? "online" : ""}`}>
+          {connected ? "● Connected" : "○ Connecting..."}
+        </span>
+
+        {/* Show a helpful message when the server cannot be reached */}
+        {!connected && connectError && (
+          <p className="error-text" role="alert">
+            Cannot reach the server at {SERVER_URL}. Is the backend running?
+          </p>
+        )}
+      </div>
     </header>
   );
 }

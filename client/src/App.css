@@ -142,3 +142,15 @@ body {
     margin-left: 0;
   }
 }
+
+/* ---------- Day 4: connection error ---------- */
+.status-box {
+  text-align: right;
+}
+
+.error-text {
+  max-width: 260px;
+  margin: 8px 0 0 auto;
+  color: #b91c1c;
+  font-size: 13px;
+}

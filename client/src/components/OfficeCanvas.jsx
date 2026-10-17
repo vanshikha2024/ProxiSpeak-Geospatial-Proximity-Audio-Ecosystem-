@@ -7,14 +7,27 @@
 import { useEffect, useRef, useState } from "react";
 import { drawOffice } from "../canvas/drawOffice";
 import { useKeyboard } from "../hooks/useKeyboard";
-import { EDGE, HEIGHT, SEND_EVERY_MS, SPEED, WIDTH } from "../config";
+import { EVENTS } from "../network/events";
+import {
+  EDGE,
+  HEIGHT,
+  SEND_EVERY_MS,
+  SPEED,
+  WIDTH,
+} from "../config";
 
 // Keep a number between a minimum and a maximum.
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-export default function OfficeCanvas({ socket, connected, usersRef, myId, spawn }) {
+export default function OfficeCanvas({
+  socket,
+  connected,
+  usersRef,
+  myId,
+  spawn,
+}) {
   // Refs store values WITHOUT re-rendering React (good for fast changes).
   const canvasRef = useRef(null);
   const positionRef = useRef({ x: 100, y: 100 }); // where I am RIGHT NOW
@@ -45,7 +58,9 @@ export default function OfficeCanvas({ socket, connected, usersRef, myId, spawn 
 
     function animate(time) {
       // dt = seconds since the last frame (capped so lag does not teleport me)
-      const dt = previousTime ? Math.min((time - previousTime) / 1000, 0.05) : 0;
+      const dt = previousTime
+        ? Math.min((time - previousTime) / 1000, 0.05)
+        : 0;
       previousTime = time;
 
       const current = positionRef.current;
@@ -121,7 +136,7 @@ export default function OfficeCanvas({ socket, connected, usersRef, myId, spawn 
           Math.abs(last.y - current.y) > 0.5;
 
         if (moved) {
-          socket.emit("position:update", { x: current.x, y: current.y });
+          socket.emit(EVENTS.POSITION_UPDATE, { x: current.x, y: current.y });
           lastSentPosRef.current = { x: current.x, y: current.y };
           lastSentTimeRef.current = time;
         }

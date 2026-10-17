@@ -5,6 +5,7 @@
 // Returns:
 //   socket    - the socket (use socket.emit to send things)
 //   connected - true when we are connected to the server
+//   connectError - text like "xhr poll error" if we cannot reach the server
 //   users     - list of users (for text on the page, e.g. "3 online")
 //   usersRef  - the same list in a ref (for the 60-FPS game loop)
 //   myId      - my own socket id
@@ -12,9 +13,11 @@
 // ---------------------------------------------------------------
 import { useEffect, useRef, useState } from "react";
 import socket from "../network/socket";
+import { EVENTS } from "../network/events";
 
 export function useSocket() {
   const [connected, setConnected] = useState(false);
+  const [connectError, setConnectError] = useState("");
   const [users, setUsers] = useState([]);
   const [myId, setMyId] = useState("");
   const [spawn, setSpawn] = useState(null);
@@ -26,12 +29,20 @@ export function useSocket() {
     function onConnect() {
       setMyId(socket.id);
       setConnected(true);
+      setConnectError("");
+    }
+
+    // Called when the server cannot be reached (server off, wrong URL...)
+    function onConnectError(error) {
+      setConnectError(error.message || "Cannot reach the server");
     }
 
     function onDisconnect() {
       // After a reconnect we get a NEW id and a new spawn point.
       spawnedRef.current = false;
       setConnected(false);
+      // Warn the person if the server goes away while they are in the office.
+      setConnectError("Lost connection to the server");
     }
 
     function onUsersUpdate(nextUsers) {
@@ -48,17 +59,19 @@ export function useSocket() {
     }
 
     socket.on("connect", onConnect);
+    socket.on("connect_error", onConnectError);
     socket.on("disconnect", onDisconnect);
-    socket.on("users:update", onUsersUpdate);
+    socket.on(EVENTS.USERS_UPDATE, onUsersUpdate);
     socket.connect();
 
     return () => {
       socket.off("connect", onConnect);
+      socket.off("connect_error", onConnectError);
       socket.off("disconnect", onDisconnect);
-      socket.off("users:update", onUsersUpdate);
+      socket.off(EVENTS.USERS_UPDATE, onUsersUpdate);
       socket.disconnect();
     };
   }, []);
 
-  return { socket, connected, users, usersRef, myId, spawn };
+  return { socket, connected, connectError, users, usersRef, myId, spawn };
 }

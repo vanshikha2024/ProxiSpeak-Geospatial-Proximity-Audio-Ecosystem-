@@ -8,11 +8,11 @@ import TopBar from "./components/TopBar";
 import { useSocket } from "./hooks/useSocket";
 
 export default function App() {
-  const { socket, connected, users, usersRef, myId, spawn } = useSocket();
+  const { socket, connected, connectError, users, usersRef, myId, spawn } = useSocket();
 
   return (
     <main className="page">
-      <TopBar connected={connected} />
+      <TopBar connected={connected} connectError={connectError} />
 
       <section className="office">
         <div className="office-title">

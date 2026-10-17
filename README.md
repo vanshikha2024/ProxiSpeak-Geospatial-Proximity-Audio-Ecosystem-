@@ -44,6 +44,14 @@ Keep both terminals open while using the app.
 5. The other browser should show the avatar moving too.
 6. Close one browser; the other should show the online count drop.
 
+## Frontend settings (.env)
+The frontend finds the server through `VITE_SERVER_URL`.
+```powershell
+cd client
+copy .env.example .env
+```
+Change the value inside `.env` only if your server is not on `http://localhost:5000`. Restart `npm run dev` after changing it.
+
 ## If it gets stuck on "Connecting..."
 This usually means the browser is not reaching the server, or an old process is occupying port 5000.
 

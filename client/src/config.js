@@ -17,5 +17,8 @@ export const SPEED = 180;
 // Send my position at most every 50 ms (= 20 times per second)
 export const SEND_EVERY_MS = 50;
 
-// Where the backend server lives
-export const SERVER_URL = "http://localhost:5000";
+// Where the backend server lives.
+// Set VITE_SERVER_URL in client/.env (see .env.example).
+// If it is not set, we use the local server on port 5000.
+export const SERVER_URL =
+  import.meta.env.VITE_SERVER_URL || "http://localhost:5000";
