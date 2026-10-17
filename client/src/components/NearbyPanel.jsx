@@ -13,7 +13,7 @@ const STATE_LABELS = {
 
 export default function NearbyPanel({ nearby, peerStates = {} }) {
   return (
-    <div className="nearby-panel">
+    <div className="nearby-panel" aria-live="polite">
       <h3>
         In earshot ({nearby.length})
         <span>

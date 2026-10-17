@@ -34,3 +34,7 @@ export const SERVER_URL =
 // STUN servers help two browsers find a path to each other (NAT traversal).
 // On one computer / one Wi-Fi it works even without them.
 export const ICE_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];
+
+// Add ?debug to the page address (e.g. http://localhost:5173/?debug)
+// to show a live FPS counter. Handy for the "steady 60 FPS" check.
+export const DEBUG = new URLSearchParams(window.location.search).has("debug");

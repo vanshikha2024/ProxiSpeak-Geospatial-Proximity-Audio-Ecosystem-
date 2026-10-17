@@ -12,6 +12,7 @@ import { getNearbyUsers } from "../utils/proximity";
 import {
   AUDIO_LEAVE_RADIUS,
   AUDIO_RADIUS,
+  DEBUG,
   EDGE,
   HEIGHT,
   SEND_EVERY_MS,
@@ -43,6 +44,7 @@ export default function OfficeCanvas({
   const keysRef = useKeyboard();
 
   const [position, setPosition] = useState({ x: 100, y: 100 });
+  const [fps, setFps] = useState(0); // only used when DEBUG is on
 
   // When the server tells me my start position, jump there once.
   useEffect(() => {
@@ -57,7 +59,15 @@ export default function OfficeCanvas({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    // Sharp drawing on high-resolution screens (phones, retina laptops):
+    // make the canvas bitmap bigger, then scale our drawing to match.
+    const pixelRatio = window.devicePixelRatio || 1;
+    canvas.width = WIDTH * pixelRatio;
+    canvas.height = HEIGHT * pixelRatio;
+
     let frameId;
+    let frameCount = 0; // for the FPS counter
+    let lastFpsTime = 0;
     let previousTime = 0;
     let lastUiUpdate = 0;
     let lastNearbyCheck = 0;
@@ -103,6 +113,7 @@ export default function OfficeCanvas({
       // 2) DRAW EVERYONE -----------------------------------------
       const ctx = canvas.getContext("2d");
       if (ctx) {
+        ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
         // Me: drawn from my LOCAL position (instant and smooth).
         // Others: glide toward their latest server position.
         const display = displayRef.current;
@@ -184,6 +195,16 @@ export default function OfficeCanvas({
         lastUiUpdate = time;
       }
 
+      // 5) COUNT FRAMES PER SECOND (debug only) -------------------
+      if (DEBUG) {
+        frameCount += 1;
+        if (time - lastFpsTime >= 1000) {
+          setFps(frameCount);
+          frameCount = 0;
+          lastFpsTime = time;
+        }
+      }
+
       frameId = requestAnimationFrame(animate);
     }
 
@@ -220,7 +241,8 @@ export default function OfficeCanvas({
         <span>W A S D</span>
         <span>or arrow keys to move</span>
         <span>Click office to move</span>
-        <span className="coordinates">
+        {DEBUG && <span className="coordinates">FPS: {fps}</span>}
+        <span className={DEBUG ? "" : "coordinates"}>
           Position: {position.x}, {position.y}
         </span>
       </div>
