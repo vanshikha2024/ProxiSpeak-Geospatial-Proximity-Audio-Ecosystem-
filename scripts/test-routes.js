@@ -200,10 +200,25 @@ async function runRoutesTest() {
 
   } catch (error) {
     console.error('[Test Error]:', error);
+    failCount++;
   } finally {
-    server.close();
+    if (server) {
+      try {
+        await new Promise((resolve, reject) => {
+          server.close((err) => (err ? reject(err) : resolve()));
+        });
+      } catch (err) {
+        console.error('Error closing test server:', err.message);
+        failCount++;
+      }
+    }
     if (isMongoConnected) {
-      await mongoose.disconnect();
+      try {
+        await mongoose.disconnect();
+      } catch (err) {
+        console.error('Error disconnecting mongoose:', err.message);
+        failCount++;
+      }
     }
   }
 

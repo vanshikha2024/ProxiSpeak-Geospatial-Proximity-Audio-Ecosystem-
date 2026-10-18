@@ -305,12 +305,26 @@ const runTests = async () => {
   await new Promise((r) => setTimeout(r, 200));
 
   if (isMongoConnected) {
-    await User.deleteMany({ username: { $in: ['TestAlice', 'TestBob', 'TestCharlie', 'TestDave'] } });
-    await Room.deleteMany({ name: { $in: ['TestRoomAlpha', 'TestRoomBeta'] } });
-    await mongoose.disconnect();
+    try {
+      await User.deleteMany({ username: { $in: ['TestAlice', 'TestBob', 'TestCharlie', 'TestDave'] } });
+      await Room.deleteMany({ name: { $in: ['TestRoomAlpha', 'TestRoomBeta'] } });
+      await mongoose.disconnect();
+    } catch (cleanupErr) {
+      console.error('Error during test database cleanup:', cleanupErr.message);
+      failedCount++;
+    }
   }
 
-  server.close();
+  if (server) {
+    try {
+      await new Promise((resolve, reject) => {
+        server.close((err) => (err ? reject(err) : resolve()));
+      });
+    } catch (servErr) {
+      console.error('Error closing test HTTP server:', servErr.message);
+      failedCount++;
+    }
+  }
 
   console.log('\n--- Test Suite Summary ---');
   console.log(`Passed: ${passedCount} | Failed: ${failedCount}`);

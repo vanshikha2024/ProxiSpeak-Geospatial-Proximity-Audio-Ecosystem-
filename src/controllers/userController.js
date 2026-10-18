@@ -2,22 +2,26 @@ import mongoose from 'mongoose';
 import User from '../models/User.js';
 import Room from '../models/Room.js';
 import { DEFAULT_AUDIO_RADIUS } from '../config/constants.js';
+import {
+  calculateEuclideanDistance,
+  isWithinAudioRadius,
+  getEffectiveAudioRadius,
+} from '../utils/proximity.js';
 
-/**
- * Helper to compute Euclidean distance between two 2D points [x1, y1] and [x2, y2]
- */
-export const calculateEuclideanDistance = (x1, y1, x2, y2) => {
-  return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
-};
+// Re-export proximity helpers for backwards compatibility and test suites
+export { calculateEuclideanDistance, isWithinAudioRadius, getEffectiveAudioRadius };
 
 /**
  * GET /api/users/nearby
- * Finds nearby online avatars based on 2D Euclidean spatial coordinates and proximity radius
+ * Finds nearby online avatars based on 2D Euclidean spatial coordinates and proximity radius.
+ * When roomId is provided, the room's configured audioRadius is the source of truth.
+ *
  * Query parameters:
  *  - x (required): number
  *  - y (required): number
- *  - maxDistance (optional): default 100
- *  - roomId (optional): string filter by room
+ *  - maxDistance (optional): fallback radius if no roomId specified
+ *  - radius (optional): alias for maxDistance
+ *  - roomId (optional): string filter by room and source of truth for audioRadius
  *  - excludeId (optional): string avatarId to exclude (self)
  */
 export const getNearbyUsers = async (req, res) => {
@@ -65,19 +69,23 @@ export const getNearbyUsers = async (req, res) => {
       });
     }
 
-    const maxDistance = rawRadius !== undefined ? parseFloat(rawRadius) : DEFAULT_AUDIO_RADIUS;
-
-    if (!Number.isFinite(maxDistance) || maxDistance <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Query parameter maxDistance/radius must be a positive number',
-      });
+    let parsedRadius = null;
+    if (rawRadius !== undefined) {
+      parsedRadius = parseFloat(rawRadius);
+      if (!Number.isFinite(parsedRadius) || parsedRadius <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Query parameter maxDistance/radius must be a positive number',
+        });
+      }
     }
 
     // Base filter: online users
     const filter = {
       isOnline: true,
     };
+
+    let effectiveRadius = DEFAULT_AUDIO_RADIUS;
 
     if (roomId) {
       if (!mongoose.Types.ObjectId.isValid(roomId)) {
@@ -88,16 +96,22 @@ export const getNearbyUsers = async (req, res) => {
       }
 
       if (mongoose.connection.readyState === 1) {
-        const roomExists = await Room.exists({ _id: roomId });
-        if (!roomExists) {
+        // Query room and obtain configured audioRadius as the source of truth
+        const room = await Room.findById(roomId).select('audioRadius').lean();
+        if (!room) {
           return res.status(404).json({
             success: false,
             message: 'Room not found',
           });
         }
+        effectiveRadius = getEffectiveAudioRadius(room, parsedRadius);
+      } else {
+        effectiveRadius = getEffectiveAudioRadius(null, parsedRadius);
       }
 
       filter.roomId = roomId;
+    } else {
+      effectiveRadius = getEffectiveAudioRadius(null, parsedRadius);
     }
 
     if (excludeId) {
@@ -110,78 +124,50 @@ export const getNearbyUsers = async (req, res) => {
       filter._id = { $ne: excludeId };
     }
 
-    let nearbyUsers = [];
+    // Planar Euclidean spatial query using 2d index on location.coordinates
+    const usersInScope = await User.find({
+      ...filter,
+      'location.coordinates': {
+        $near: [x, y],
+        $maxDistance: effectiveRadius,
+      },
+    })
+      .select('username avatarUrl location isOnline roomId')
+      .lean();
 
-    // Attempt MongoDB 2d/spatial query first, fallback gracefully to in-memory Euclidean distance
-    try {
-      // For 2D Euclidean coordinates in flat space
-      const usersInScope = await User.find({
-        ...filter,
-        'location.coordinates': {
-          $near: [x, y],
-          $maxDistance: maxDistance,
-        },
+    const nearbyUsers = usersInScope
+      .map((u) => {
+        const uX = u.location?.coordinates?.[0] ?? 0;
+        const uY = u.location?.coordinates?.[1] ?? 0;
+        const distance = calculateEuclideanDistance(x, y, uX, uY);
+        const inAudioRange = isWithinAudioRadius(x, y, uX, uY, effectiveRadius);
+        return {
+          avatarId: u._id,
+          username: u.username,
+          avatarUrl: u.avatarUrl,
+          x: uX,
+          y: uY,
+          distance: Math.round(distance * 100) / 100,
+          inAudioRange,
+          roomId: u.roomId,
+          isOnline: u.isOnline,
+        };
       })
-        .select('username avatarUrl location isOnline roomId')
-        .lean();
-
-      nearbyUsers = usersInScope
-        .map((u) => {
-          const uX = u.location?.coordinates?.[0] ?? 0;
-          const uY = u.location?.coordinates?.[1] ?? 0;
-          const distance = calculateEuclideanDistance(x, y, uX, uY);
-          return {
-            avatarId: u._id,
-            username: u.username,
-            avatarUrl: u.avatarUrl,
-            x: uX,
-            y: uY,
-            distance: Math.round(distance * 100) / 100,
-            inAudioRange: distance <= maxDistance,
-            roomId: u.roomId,
-            isOnline: u.isOnline,
-          };
-        })
-        .filter((u) => u.distance <= maxDistance);
-    } catch (geoError) {
-      // In case 2d index is indexing or planar distance fallback
-      const onlineUsers = await User.find(filter)
-        .select('username avatarUrl location isOnline roomId')
-        .lean();
-
-      nearbyUsers = onlineUsers
-        .map((u) => {
-          const uX = u.location?.coordinates?.[0] ?? 0;
-          const uY = u.location?.coordinates?.[1] ?? 0;
-          const distance = calculateEuclideanDistance(x, y, uX, uY);
-          return {
-            avatarId: u._id,
-            username: u.username,
-            avatarUrl: u.avatarUrl,
-            x: uX,
-            y: uY,
-            distance: Math.round(distance * 100) / 100,
-            inAudioRange: distance <= maxDistance,
-            roomId: u.roomId,
-            isOnline: u.isOnline,
-          };
-        })
-        .filter((u) => u.distance <= maxDistance)
-        .sort((a, b) => a.distance - b.distance);
-    }
+      .filter((u) => u.inAudioRange)
+      .sort((a, b) => a.distance - b.distance);
 
     return res.status(200).json({
       success: true,
       origin: { x, y },
-      maxDistance,
+      maxDistance: effectiveRadius,
       count: nearbyUsers.length,
       data: nearbyUsers,
     });
   } catch (error) {
+    console.error('[Nearby] Failed to query nearby users:', error.message);
     return res.status(500).json({
       success: false,
       message: 'Failed to query nearby users',
-      error: error.message,
     });
   }
 };
