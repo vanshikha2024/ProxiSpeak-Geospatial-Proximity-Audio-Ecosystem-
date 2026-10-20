@@ -22,5 +22,11 @@ export const initSocket = (httpServer) => {
   return io;
 };
 
-export { registerSignalingHandlers, activeAvatars };
+export {
+  registerSignalingHandlers,
+  activeAvatars,
+  validateSignalingRequest,
+  getRoomAudioRadius,
+  roomAudioRadii,
+} from './signaling.js';
 

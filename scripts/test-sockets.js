@@ -242,33 +242,57 @@ const runTests = async () => {
     '10b. Empty roomId triggers error event'
   );
 
-  // 11. Week 2 WebRTC Signaling Relay
+  // 11. Secure, Room-Aware WebRTC Signaling Relay
+  // Move client1 into audio proximity range with client2 ([70, 80])
+  const c2MoveWait = new Promise((resolve) => client2.once('avatar:moved', resolve));
+  client1.emit('avatar:move', { x: 75, y: 80 });
+  await c2MoveWait;
+
+  // 11a. Valid in-range signal:offer relayed to peer in same room (ignoring spoofed sender fields)
   const offerPromise = new Promise((resolve) => client2.once('signal:offer', resolve));
-  client1.emit('signal:offer', { toSocketId: client2.id, offer: { type: 'offer', sdp: 'dummy-sdp-offer' } });
+  client1.emit('signal:offer', {
+    toSocketId: client2.id,
+    offer: { type: 'offer', sdp: 'dummy-sdp-offer' },
+    fromSocketId: 'spoofed-socket-id',
+    fromAvatarId: 'spoofed-avatar-id',
+  });
   const receivedOffer = await offerPromise;
   assert(
     receivedOffer.fromSocketId === client1.id &&
       receivedOffer.fromAvatarId === c1Joined.avatarId &&
       receivedOffer.offer.sdp === 'dummy-sdp-offer',
-    '11a. signal:offer relayed successfully to peer in same room'
+    '11a. signal:offer relayed successfully to peer in same room with server-derived sender identity'
   );
 
+  // 11b. Valid in-range signal:answer relayed successfully back to peer
   const answerPromise = new Promise((resolve) => client1.once('signal:answer', resolve));
-  client2.emit('signal:answer', { toSocketId: client1.id, answer: { type: 'answer', sdp: 'dummy-sdp-answer' } });
+  client2.emit('signal:answer', {
+    toSocketId: client1.id,
+    answer: { type: 'answer', sdp: 'dummy-sdp-answer' },
+  });
   const receivedAnswer = await answerPromise;
   assert(
-    receivedAnswer.fromSocketId === client2.id && receivedAnswer.answer.sdp === 'dummy-sdp-answer',
-    '11b. signal:answer relayed successfully back to peer'
+    receivedAnswer.fromSocketId === client2.id &&
+      receivedAnswer.fromAvatarId === c2Joined.avatarId &&
+      receivedAnswer.answer.sdp === 'dummy-sdp-answer',
+    '11b. signal:answer relayed successfully back to peer in same room'
   );
 
+  // 11c. Valid in-range signal:ice relayed successfully to peer
   const icePromise = new Promise((resolve) => client2.once('signal:ice', resolve));
-  client1.emit('signal:ice', { toSocketId: client2.id, candidate: { candidate: 'candidate:1' } });
+  client1.emit('signal:ice', {
+    toSocketId: client2.id,
+    candidate: { candidate: 'candidate:1' },
+  });
   const receivedIce = await icePromise;
   assert(
-    receivedIce.fromSocketId === client1.id && receivedIce.candidate.candidate === 'candidate:1',
-    '11c. signal:ice relayed successfully to peer'
+    receivedIce.fromSocketId === client1.id &&
+      receivedIce.fromAvatarId === c1Joined.avatarId &&
+      receivedIce.candidate.candidate === 'candidate:1',
+    '11c. signal:ice relayed successfully to peer in same room'
   );
 
+  // 11d. Cross-room signaling attempt is blocked
   const crossRoomErrPromise = new Promise((resolve) => client3.once('error', resolve));
   client3.emit('signal:offer', { toSocketId: client1.id, offer: { test: true } });
   const crossErr = await crossRoomErrPromise;
@@ -276,6 +300,123 @@ const runTests = async () => {
     crossErr && crossErr.message.includes('Target peer not found in this room'),
     '11d. Cross-room WebRTC signaling attempt is blocked and emits error'
   );
+
+  // 11e. Out-of-range signaling attempt (offer) is blocked by configured audio radius
+  const c2MoveOutWait = new Promise((resolve) => client2.once('avatar:moved', resolve));
+  client1.emit('avatar:move', { x: 300, y: 300 }); // Distance to [70, 80] is ~318px > 100px audio radius
+  await c2MoveOutWait;
+
+  const outOfRangeOfferErrPromise = new Promise((resolve) => client1.once('error', resolve));
+  client1.emit('signal:offer', {
+    toSocketId: client2.id,
+    offer: { type: 'offer', sdp: 'out-of-range-offer' },
+  });
+  const outOfRangeOfferErr = await outOfRangeOfferErrPromise;
+  assert(
+    outOfRangeOfferErr && outOfRangeOfferErr.message.includes('out of proximity audio range'),
+    '11e. Out-of-range signal:offer is blocked when peer is beyond room audio radius'
+  );
+
+  // 11f. Out-of-range signaling attempt (answer & ice) is blocked
+  const outOfRangeAnswerErrPromise = new Promise((resolve) => client2.once('error', resolve));
+  client2.emit('signal:answer', {
+    toSocketId: client1.id,
+    answer: { type: 'answer', sdp: 'out-of-range-answer' },
+  });
+  const outOfRangeAnswerErr = await outOfRangeAnswerErrPromise;
+
+  const outOfRangeIceErrPromise = new Promise((resolve) => client2.once('error', resolve));
+  client2.emit('signal:ice', {
+    toSocketId: client1.id,
+    candidate: { candidate: 'candidate:out-of-range' },
+  });
+  const outOfRangeIceErr = await outOfRangeIceErrPromise;
+  assert(
+    outOfRangeAnswerErr &&
+      outOfRangeAnswerErr.message.includes('out of proximity audio range') &&
+      outOfRangeIceErr &&
+      outOfRangeIceErr.message.includes('out of proximity audio range'),
+    '11f. Out-of-range signal:answer and signal:ice are blocked when peer is beyond audio radius'
+  );
+
+  // Move client1 back into range for subsequent tests
+  const c2MoveBackWait = new Promise((resolve) => client2.once('avatar:moved', resolve));
+  client1.emit('avatar:move', { x: 80, y: 80 });
+  await c2MoveBackWait;
+
+  // 11g. Nonexistent or disconnected target socket is rejected
+  const nonExistentTargetPromise = new Promise((resolve) => client1.once('error', resolve));
+  client1.emit('signal:offer', {
+    toSocketId: 'nonexistent-socket-id-999',
+    offer: { type: 'offer', sdp: 'test' },
+  });
+  const nonExistentErr = await nonExistentTargetPromise;
+  assert(
+    nonExistentErr && nonExistentErr.message.includes('Target peer not found'),
+    '11g. Nonexistent target socket ID is rejected with error'
+  );
+
+  // 11h. Self-signaling attempt is rejected
+  const selfSignalPromise = new Promise((resolve) => client1.once('error', resolve));
+  client1.emit('signal:offer', {
+    toSocketId: client1.id,
+    offer: { type: 'offer', sdp: 'test' },
+  });
+  const selfSignalErr = await selfSignalPromise;
+  assert(
+    selfSignalErr && selfSignalErr.message.includes('Cannot signal yourself'),
+    '11h. Self-signaling attempt is rejected with error'
+  );
+
+  // 11i. Malformed payloads (missing target, null payload, missing signal fields)
+  const missingTargetPromise = new Promise((resolve) => client1.once('error', resolve));
+  client1.emit('signal:offer', { offer: { type: 'offer' } });
+  const missingTargetErr = await missingTargetPromise;
+
+  const nullPayloadPromise = new Promise((resolve) => client1.once('error', resolve));
+  client1.emit('signal:offer', null);
+  const nullPayloadErr = await nullPayloadPromise;
+
+  const missingOfferPromise = new Promise((resolve) => client1.once('error', resolve));
+  client1.emit('signal:offer', { toSocketId: client2.id });
+  const missingOfferErr = await missingOfferPromise;
+
+  const missingAnswerPromise = new Promise((resolve) => client1.once('error', resolve));
+  client1.emit('signal:answer', { toSocketId: client2.id });
+  const missingAnswerErr = await missingAnswerPromise;
+
+  const missingIcePromise = new Promise((resolve) => client1.once('error', resolve));
+  client1.emit('signal:ice', { toSocketId: client2.id });
+  const missingIceErr = await missingIcePromise;
+
+  assert(
+    missingTargetErr &&
+      missingTargetErr.message.includes('Invalid target socket ID') &&
+      nullPayloadErr &&
+      nullPayloadErr.message.includes('Invalid signaling payload') &&
+      missingOfferErr &&
+      missingOfferErr.message.includes('offer object is required') &&
+      missingAnswerErr &&
+      missingAnswerErr.message.includes('answer object is required') &&
+      missingIceErr &&
+      missingIceErr.message.includes('candidate is required'),
+    '11i. Malformed signaling payloads are safely validated and rejected without server crash'
+  );
+
+  // 11j. Unregistered sender attempting to signal before joining is rejected
+  const unjoinedClient = createClient();
+  await new Promise((resolve) => unjoinedClient.on('connect', resolve));
+  const unjoinedErrPromise = new Promise((resolve) => unjoinedClient.once('error', resolve));
+  unjoinedClient.emit('signal:offer', {
+    toSocketId: client2.id,
+    offer: { type: 'offer', sdp: 'unregistered' },
+  });
+  const unjoinedErr = await unjoinedErrPromise;
+  assert(
+    unjoinedErr && unjoinedErr.message.includes('Avatar has not joined yet'),
+    '11j. Unregistered sender attempting signaling before avatar:join is rejected'
+  );
+  unjoinedClient.disconnect();
 
   // 12. Disconnect & Cleanup
   const leavePromise = new Promise((resolve) => client2.once('avatar:left', resolve));
