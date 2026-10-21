@@ -249,6 +249,11 @@ const runTests = async () => {
   await c2MoveWait;
 
   // 11a. Valid in-range signal:offer relayed to peer in same room (ignoring spoofed sender fields)
+  let c4SawOffer = false;
+  let c3SawOffer = false;
+  client4.once('signal:offer', () => { c4SawOffer = true; });
+  client3.once('signal:offer', () => { c3SawOffer = true; });
+
   const offerPromise = new Promise((resolve) => client2.once('signal:offer', resolve));
   client1.emit('signal:offer', {
     toSocketId: client2.id,
@@ -262,6 +267,10 @@ const runTests = async () => {
       receivedOffer.fromAvatarId === c1Joined.avatarId &&
       receivedOffer.offer.sdp === 'dummy-sdp-offer',
     '11a. signal:offer relayed successfully to peer in same room with server-derived sender identity'
+  );
+  assert(
+    !c4SawOffer && !c3SawOffer,
+    '11a-iso. Private signal:offer is relayed strictly to target peer and does not leak to other occupants or other rooms'
   );
 
   // 11b. Valid in-range signal:answer relayed successfully back to peer
@@ -419,6 +428,10 @@ const runTests = async () => {
   unjoinedClient.disconnect();
 
   // 12. Disconnect & Cleanup
+  const staleSocketId = client1.id;
+  let c3SawC1Leave = false;
+  client3.once('avatar:left', () => { c3SawC1Leave = true; });
+
   const leavePromise = new Promise((resolve) => client2.once('avatar:left', resolve));
   client1.disconnect();
   const leftData = await leavePromise;
@@ -426,17 +439,84 @@ const runTests = async () => {
   assert(
     leftData.avatarId === c1Joined.avatarId &&
       leftData.socketId === c1Joined.socketId &&
+      leftData.username === 'TestAlice' &&
       leftData.roomId === room1Id,
-    '12a. Remaining client in Room 1 receives avatar:left event with consistent payload'
+    '12a. Remaining client in Room 1 receives avatar:left event with consistent room-scoped payload'
+  );
+  assert(!c3SawC1Leave, '12b. avatar:left event does not leak to unrelated Room 2');
+
+  // Verify future signaling cannot target stale/disconnected socket
+  const staleTargetPromise = new Promise((resolve) => client2.once('error', resolve));
+  client2.emit('signal:offer', {
+    toSocketId: staleSocketId,
+    offer: { type: 'offer', sdp: 'stale' },
+  });
+  const staleErr = await staleTargetPromise;
+  assert(
+    staleErr && staleErr.message.includes('Target peer not found or disconnected'),
+    '12c. Future signaling targeting stale disconnected socket is rejected with consistent error'
   );
 
   if (isMongoConnected) {
-    await new Promise((r) => setTimeout(r, 200));
     const aliceFinal = await User.findById(c1Joined.avatarId);
     assert(
       aliceFinal && aliceFinal.isOnline === false && aliceFinal.socketId === null,
-      '12b. MongoDB records marked isOnline: false and socketId: null on disconnect'
+      '12d. MongoDB records marked isOnline: false and socketId: null on disconnect'
     );
+  }
+
+  // 13. Disconnect Persistence & Anti-Overwrite Lifecycle
+  const client5 = createClient();
+  await new Promise((resolve) => client5.on('connect', resolve));
+  const c5JoinedPromise = new Promise((resolve) => client5.once('avatar:joined', resolve));
+  client5.emit('avatar:join', { username: 'TestEve', x: 20, y: 20, roomId: room1Id });
+  const c5Joined = await c5JoinedPromise;
+
+  // Fire rapid movement: move 1 at [30, 35], then move 2 at [60, 65] within throttle window
+  const c2SawEveMove1 = new Promise((resolve) => client2.once('avatar:moved', resolve));
+  client5.emit('avatar:move', { x: 30, y: 35 });
+  await c2SawEveMove1;
+
+  const c2SawEveMove2 = new Promise((resolve) => client2.once('avatar:moved', resolve));
+  client5.emit('avatar:move', { x: 60, y: 65 });
+  await c2SawEveMove2;
+
+  // Immediately disconnect while trailing throttle timer is pending
+  const eveLeavePromise = new Promise((resolve) => client2.once('avatar:left', resolve));
+  client5.disconnect();
+  await eveLeavePromise;
+
+  if (isMongoConnected) {
+    // Wait for the trailing throttle window (1200ms) to ensure pending timers have expired
+    await new Promise((r) => setTimeout(r, 1200));
+    const eveFinal = await User.findById(c5Joined.avatarId);
+    assert(
+      eveFinal &&
+        eveFinal.isOnline === false &&
+        eveFinal.location.coordinates[0] === 60 &&
+        eveFinal.location.coordinates[1] === 65,
+      '13. Rapid movement followed by disconnect cleans up timers and pending saves do not overwrite final coordinates'
+    );
+  } else {
+    console.log('ℹ️ [SKIPPED] 13. Disconnect persistence test (requires MongoDB)');
+  }
+
+  // 14. Database & Operational Failure Resilience
+  if (isMongoConnected) {
+    const clientErrTest = createClient();
+    await new Promise((resolve) => clientErrTest.on('connect', resolve));
+
+    const badRoomPromise = new Promise((resolve) => clientErrTest.once('error', resolve));
+    // Join with non-existent ObjectId room
+    const fakeRoomId = new mongoose.Types.ObjectId().toString();
+    clientErrTest.emit('avatar:join', { username: 'TestFrank', x: 10, y: 10, roomId: fakeRoomId });
+    const badRoomErr = await badRoomPromise;
+    assert(
+      badRoomErr && badRoomErr.message.includes('not found'),
+      '14. Invalid / non-existent room query triggers controlled error event without crashing socket server'
+    );
+
+    clientErrTest.disconnect();
   }
 
   // Teardown
@@ -447,7 +527,7 @@ const runTests = async () => {
 
   if (isMongoConnected) {
     try {
-      await User.deleteMany({ username: { $in: ['TestAlice', 'TestBob', 'TestCharlie', 'TestDave'] } });
+      await User.deleteMany({ username: { $in: ['TestAlice', 'TestBob', 'TestCharlie', 'TestDave', 'TestEve', 'TestFrank'] } });
       await Room.deleteMany({ name: { $in: ['TestRoomAlpha', 'TestRoomBeta'] } });
       await mongoose.disconnect();
     } catch (cleanupErr) {

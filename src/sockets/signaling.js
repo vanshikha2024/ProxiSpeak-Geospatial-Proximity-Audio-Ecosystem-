@@ -71,9 +71,10 @@ export const areCoordinatesValid = (x, y) => {
 const saveCoordinatesToDB = async (avatarId, coordinates) => {
   try {
     if (mongoose.connection.readyState === 1 && mongoose.isValidObjectId(avatarId)) {
-      await User.findByIdAndUpdate(avatarId, {
-        'location.coordinates': coordinates,
-      });
+      await User.findOneAndUpdate(
+        { _id: avatarId, isOnline: true },
+        { 'location.coordinates': coordinates }
+      );
     }
   } catch (err) {
     console.error(`[Avatar] Failed to persist throttled coordinates for avatar ${avatarId}:`, err.message);
@@ -119,6 +120,12 @@ export const persistPositionThrottled = (socketId, avatarId, coordinates) => {
       state.timeoutId = setTimeout(() => {
         const currentState = persistenceState.get(socketId);
         if (currentState && currentState.pendingCoords) {
+          // If avatar has disconnected, discard pending coordinates
+          if (!activeAvatars.has(socketId)) {
+            currentState.pendingCoords = null;
+            currentState.timeoutId = null;
+            return;
+          }
           currentState.lastSavedAt = Date.now();
           const coords = currentState.pendingCoords;
           currentState.pendingCoords = null;
