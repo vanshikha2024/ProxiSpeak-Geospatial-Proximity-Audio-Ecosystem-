@@ -71,6 +71,7 @@ const userSchema = new mongoose.Schema(
 // Set min/max bounds suitable for virtual office canvas dimensions (up to 10,000 x 10,000 px)
 userSchema.index({ 'location.coordinates': '2d' }, { min: -2000, max: 10000 });
 
+
 const User = mongoose.model('User', userSchema);
 
 export default User;
