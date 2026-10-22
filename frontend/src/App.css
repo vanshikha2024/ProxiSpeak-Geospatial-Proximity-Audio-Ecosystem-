@@ -172,3 +172,34 @@ button:disabled {
   background: #22c55e;
 }
  
+.voice-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.voice-controls button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  background: #2563eb;
+  color: white;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.voice-controls button:disabled {
+  background: #64748b;
+  cursor: not-allowed;
+}
+
+.voice-error {
+  color: #dc2626;
+  font-size: 14px;
+}
+
+.remote-audio {
+  display: none;
+}

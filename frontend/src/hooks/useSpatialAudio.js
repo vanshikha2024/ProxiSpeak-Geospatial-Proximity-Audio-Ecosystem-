@@ -1,25 +1,27 @@
-import { useEffect, useMemo, useRef } from "react";
+
+import { useEffect, useRef, useState } from "react";
 
 const DEFAULT_AUDIO_RADIUS = 100;
 
-export function useSpatialAudio(stream, distance, audioRadius = DEFAULT_AUDIO_RADIUS) {
-  const audioContextRef = useRef(null);
+export function useSpatialAudio(
+  stream,
+  distance,
+  audioRadius = DEFAULT_AUDIO_RADIUS
+) {
+  const contextRef = useRef(null);
+  const sourceRef = useRef(null);
   const gainNodeRef = useRef(null);
-
-  const radius = Number.isFinite(audioRadius) && audioRadius > 0 ? audioRadius : DEFAULT_AUDIO_RADIUS;
-
-  const gain = useMemo(() => {
-    if (!Number.isFinite(distance) || distance < 0) return 0;
-    return Math.max(0, Math.min(1, 1 - distance / radius));
-  }, [distance, radius]);
+  const [gain, setGain] = useState(0);
 
   useEffect(() => {
-    if (!stream) return undefined;
+    if (!stream) return;
 
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    const AudioContextClass =
+      window.AudioContext || window.webkitAudioContext;
+
     if (!AudioContextClass) {
-        console.warn("Web Audio API is not supported in this browser.");
-        return undefined;
+      console.error("Web Audio API is not supported.");
+      return;
     }
 
     const context = new AudioContextClass();
@@ -28,37 +30,49 @@ export function useSpatialAudio(stream, distance, audioRadius = DEFAULT_AUDIO_RA
 
     source.connect(gainNode);
     gainNode.connect(context.destination);
-    gainNode.gain.value = gain;
 
-    audioContextRef.current = context;
+    contextRef.current = context;
+    sourceRef.current = source;
     gainNodeRef.current = gainNode;
 
     if (context.state === "suspended") {
-      context.resume().catch(() => {});
+      context.resume().catch(console.error);
     }
 
     return () => {
       source.disconnect();
       gainNode.disconnect();
-
-      if (gainNodeRef.current === gainNode){
-        gainNodeRef.current = null;
-      }
-
-      if (audioContextRef.current === context){
-        audioContextRef.current = null;
-      }
       context.close().catch(() => {});
+      contextRef.current = null;
+      sourceRef.current = null;
+      gainNodeRef.current = null;
     };
   }, [stream]);
 
   useEffect(() => {
-    const context = audioContextRef.current;
-    const gainNode = gainNodeRef.current;
-    if (!context || !gainNode) return;
+    const radius =
+      Number.isFinite(audioRadius) && audioRadius > 0
+        ? audioRadius
+        : DEFAULT_AUDIO_RADIUS;
 
-    gainNode.gain.setTargetAtTime(gain, context.currentTime, 0.015);
-  }, [gain]);
+    const nextGain =
+      Number.isFinite(distance) && distance >= 0
+        ? Math.max(0, Math.min(1, 1 - distance / radius))
+        : 0;
+
+    setGain(nextGain);
+
+    const context = contextRef.current;
+    const gainNode = gainNodeRef.current;
+
+    if (context && gainNode) {
+      gainNode.gain.setTargetAtTime(
+        nextGain,
+        context.currentTime,
+        0.015
+      );
+    }
+  }, [distance, audioRadius, stream]);
 
   return gain;
 }

@@ -9,6 +9,8 @@ import { useNearbyUsers } from "./hooks/useNearbyUsers";
 import NearbyPanel from "./components/NearbyPanel";
 import { useInterpolatedAvatars } from "./hooks/useInterpolatedAvatars";
 import { useAudioRadius } from "./hooks/useAudioRadius";
+import { useWebRTC } from "./hooks/useWebRTC";
+import { socket } from "./network/socket";
 
 
 function App() {
@@ -21,6 +23,27 @@ function App() {
   const audioRadius = useAudioRadius(joined ? roomId : "");
   const nearbyUsers = useNearbyUsers(localPosition, users, userId, audioRadius);
   const interpolatedUsers = useInterpolatedAvatars(nearbyUsers);
+  const localSocketId = socket.id;
+  const { remoteStreams, startAudio } = useWebRTC(localSocketId, nearbyUsers);
+  const [voiceStarted, setVoiceStarted] = useState(false);
+  const [voiceError, setVoiceError] = useState("");
+  const remoteAudioUsers = remoteStreams.map((remote) => {
+  const user = users.find(
+      (item) => item.socketId === remote.socketId
+    );
+
+    if (!user) return null;
+
+    const distance = Math.hypot(
+      user.x - localPosition.x,
+      user.y - localPosition.y
+    );
+
+    return {
+      ...remote,
+      distance,
+    };
+  }).filter(Boolean);
 
   useAvatarSync(localPosition, userId)
 
@@ -33,6 +56,21 @@ function App() {
 
     joinRoom(name, roomId, localPosition);
   }
+  const handleStartVoice = async () => {
+    try {
+      setVoiceError("");
+
+      await startAudio();
+
+      setVoiceStarted(true);
+    } catch (error) {
+      console.error("Could not start voice:", error);
+
+      setVoiceError(
+        error?.message || "Could not start voice. Check microphone permissions."
+      );
+    }
+  };
 
   return (
     <main className="app">
@@ -107,6 +145,23 @@ function App() {
         </p>
       </section>
 
+      <div className="voice-controls">
+        <button
+          type="button"
+          onClick={handleStartVoice}
+          disabled={voiceStarted}
+        >
+          {voiceStarted ? "Voice Started" : "Start Voice"}
+        </button>
+
+        {voiceError && (
+          <p role="alert" className="voice-error">
+            {voiceError}
+          </p>
+        )}
+      </div>
+
+
       {joined && (
         <OfficeMap 
         users={interpolatedUsers} 
@@ -117,6 +172,39 @@ function App() {
 
       {joined && (<NearbyPanel nearbyUsers={nearbyUsers} audioRadius={audioRadius}/>
       )}
+
+      
+      {joined && (
+        <div className="remote-audio">
+          {remoteAudioUsers.map(({ socketId, stream, distance }) => (
+            <audio
+              key={socketId}
+              autoPlay
+              playsInline
+              ref={(element) => {
+                if (!element) return;
+
+                if (element.srcObject !== stream) {
+                  element.srcObject = stream;
+                }
+
+                const radius =
+                  Number.isFinite(audioRadius) && audioRadius > 0
+                    ? audioRadius
+                    : 100;
+
+                const volume =
+                  Number.isFinite(distance) && distance >= 0
+                    ? Math.max(0, Math.min(1, 1 - distance / radius))
+                    : 0;
+
+                element.volume = volume;
+              }}
+            />
+          ))}
+        </div>
+      )}
+
     </main>
   );
 }
