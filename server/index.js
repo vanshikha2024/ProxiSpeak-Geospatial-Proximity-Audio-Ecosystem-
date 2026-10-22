@@ -2,6 +2,7 @@ const express = require("express");
 const http = require("http");
 const cors = require("cors");
 const { Server } = require("socket.io");
+const connectDB = require("./config/db");
 
 const app = express();
 const server = http.createServer(app);
@@ -145,6 +146,8 @@ server.on("error", (error) => {
   }
   process.exitCode = 1;
 });
+
+connectDB(); // connect to MongoDB in the background (see config/db.js)
 
 server.listen(PORT, () => {
   console.log(`ProxiSpeak server running at http://localhost:${PORT}`);
