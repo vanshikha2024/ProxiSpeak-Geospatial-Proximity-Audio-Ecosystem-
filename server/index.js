@@ -2,7 +2,11 @@ const express = require("express");
 const http = require("http");
 const cors = require("cors");
 const { Server } = require("socket.io");
+const mongoose = require("mongoose");
 const connectDB = require("./config/db");
+const User = require("./models/User");
+const positionSaver = require("./services/positionSaver");
+const { parseNearbyParams } = require("./services/proximity");
 
 const app = express();
 const server = http.createServer(app);
@@ -16,6 +20,32 @@ app.get("/", (_req, res) => {
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "ProxiSpeak server" });
+});
+
+// Who is close to a point? Example:
+//   /api/users/nearby?roomId=main-office&x=200&y=150&radius=100
+app.get("/api/users/nearby", async (req, res) => {
+  const params = parseNearbyParams(req.query);
+  if (params.error) return res.status(400).json({ error: params.error });
+
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({ error: "Database is not connected" });
+  }
+
+  try {
+    const people = await User.findNearby(params.roomId, params.point, params.radius);
+    res.json({
+      count: people.length,
+      users: people.map((person) => ({
+        username: person.username,
+        x: person.location.coordinates[0],
+        y: person.location.coordinates[1],
+      })),
+    });
+  } catch (error) {
+    console.error("Nearby query failed:", error.message);
+    res.status(500).json({ error: "Nearby query failed" });
+  }
 });
 
 const io = new Server(server, {
@@ -61,6 +91,7 @@ function removeUser(socket) {
   if (!user) return;
 
   users.delete(socket.id);
+  positionSaver.leave(socket.id);
   socket.leave(user.room);
   broadcastRoom(user.room);
 }
@@ -81,6 +112,7 @@ io.on("connection", (socket) => {
     const y = 100 + Math.floor(count / 8) * 60;
 
     users.set(socket.id, { id: socket.id, name, room, x, y });
+    positionSaver.join(socket.id, { username: name, roomId: room, x, y });
     socket.join(room);
     broadcastRoom(room);
     console.log(`${name} joined room "${room}"`);
@@ -98,6 +130,7 @@ io.on("connection", (socket) => {
 
     user.x = Math.max(18, Math.min(702, position.x));
     user.y = Math.max(18, Math.min(402, position.y));
+    positionSaver.moved(socket.id, user.x, user.y);
     broadcastRoom(user.room);
   });
 

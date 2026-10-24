@@ -8,7 +8,9 @@
     "dev": "nodemon index.js",
     "test:signaling": "node scripts/test-signaling.js",
     "test:schema": "node scripts/test-user-schema.js",
-    "check:mongo": "node scripts/check-mongo.js"
+    "check:mongo": "node scripts/check-mongo.js",
+    "test:proximity": "node scripts/test-proximity.js",
+    "check:nearby": "node scripts/check-nearby.js"
   },
   "keywords": [],
   "author": "",

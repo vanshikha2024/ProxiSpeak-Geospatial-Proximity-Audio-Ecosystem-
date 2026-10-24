@@ -56,4 +56,21 @@ const userSchema = new mongoose.Schema(
 // people close to a point. The bounds cover the whole office canvas.
 userSchema.index({ "location.coordinates": "2d" }, { min: -2000, max: 10000 });
 
+// The query for "who is within `radius` px of `point` in this room".
+// $near returns people closest first. Only online people are included.
+userSchema.statics.nearbyQuery = function (roomId, point, radius) {
+  return {
+    roomId,
+    isOnline: true,
+    "location.coordinates": { $near: [point.x, point.y], $maxDistance: radius },
+  };
+};
+
+// Run the nearby query. Returns plain objects: { username, roomId, location }.
+userSchema.statics.findNearby = function (roomId, point, radius) {
+  return this.find(this.nearbyQuery(roomId, point, radius))
+    .select("username roomId location")
+    .lean();
+};
+
 module.exports = mongoose.model("User", userSchema);
