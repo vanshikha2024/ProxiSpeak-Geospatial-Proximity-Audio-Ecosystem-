@@ -1,3 +1,4 @@
+
 import { useEffect, useRef } from "react";
 import { socket } from "../network/socket";
 
@@ -12,32 +13,47 @@ export function useAvatarSync(position, userId) {
   }, [position]);
 
   useEffect(() => {
-    if (!userId || !socket.connected) return undefined;
+    if (!userId) return undefined;
 
     let timer;
+    let active = true;
 
     function scheduleUpdate() {
+      if (!active || !socket.connected) return;
+
       const elapsed = Date.now() - lastSentAt.current;
       const delay = Math.max(0, UPDATE_INTERVAL - elapsed);
 
       timer = setTimeout(() => {
-        if (!socket.connected) return;
+        if (!active || !socket.connected) return;
 
         const { x, y } = latestPosition.current ?? {};
 
-        if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+        if (Number.isFinite(x) && Number.isFinite(y)) {
+          socket.emit("avatar:move", { x, y });
+          lastSentAt.current = Date.now();
+        }
 
-        socket.emit("avatar:move", { x, y });
-        lastSentAt.current = Date.now();
+        scheduleUpdate();
       }, delay);
     }
 
-    scheduleUpdate();
+    function handleConnect() {
+      scheduleUpdate();
+    }
+
+    socket.on("connect", handleConnect);
+
+    if (socket.connected) {
+      scheduleUpdate();
+    }
 
     return () => {
+      active = false;
       clearTimeout(timer);
+      socket.off("connect", handleConnect);
     };
-  }, [position, userId]);
+  }, [userId]);
 
   return undefined;
 }
