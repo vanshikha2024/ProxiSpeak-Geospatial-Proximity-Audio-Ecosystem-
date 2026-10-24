@@ -24,7 +24,7 @@ function App() {
   const nearbyUsers = useNearbyUsers(localPosition, users, userId, audioRadius);
   const interpolatedUsers = useInterpolatedAvatars(nearbyUsers);
   const localSocketId = socket.id;
-  const { remoteStreams, startAudio } = useWebRTC(localSocketId, nearbyUsers);
+  const { remoteStreams, startAudio, isMuted, toggleMute, leaveVoice } = useWebRTC(localSocketId, nearbyUsers);
   const [voiceStarted, setVoiceStarted] = useState(false);
   const [voiceError, setVoiceError] = useState("");
   const remoteAudioUsers = remoteStreams.map((remote) => {
@@ -144,7 +144,7 @@ function App() {
           Connect with your team, wherever they are.
         </p>
       </section>
-
+      
       <div className="voice-controls">
         <button
           type="button"
@@ -154,12 +154,32 @@ function App() {
           {voiceStarted ? "Voice Started" : "Start Voice"}
         </button>
 
+        {voiceStarted && (
+          <>
+            <button type="button" onClick={toggleMute}>
+              {isMuted ? "Unmute" : "Mute"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                leaveVoice();
+                setVoiceStarted(false);
+                setVoiceError("");
+              }}
+            >
+              Leave Voice
+            </button>
+          </>
+        )}
+
         {voiceError && (
           <p role="alert" className="voice-error">
             {voiceError}
           </p>
         )}
       </div>
+
 
 
       {joined && (

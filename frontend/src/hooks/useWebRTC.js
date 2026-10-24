@@ -405,6 +405,45 @@ export function useWebRTC(localSocketId, users = []) {
     localSocketId,
   ]);
 
+  const [isMuted, setIsMuted] = useState(false);
+  const toggleMute = useCallback(() => {
+    const stream = localStreamRef.current;
+    if (!stream) return;
+
+    const nextMuted = !isMuted;
+
+    stream.getAudioTracks().forEach((track) => {
+    track.enabled = !nextMuted;
+    });
+
+    setIsMuted(nextMuted);
+    }, [isMuted]);
+
+    const leaveVoice = useCallback(() => {
+        audioStartedRef.current = false;
+
+        // Close every peer connection.
+        peersRef.current.forEach(({ pc }) => {
+        pc.close();
+        });
+        peersRef.current.clear();
+
+        // Stop the local microphone.
+        localStreamRef.current?.getTracks().forEach((track) => {
+        track.stop();
+        });
+
+        localStreamRef.current = null;
+        setLocalStream(null);
+        setRemoteStreams([]);
+        setIsMuted(false);
+
+        pendingIceRef.current.clear();
+        pendingOffersRef.current.clear();
+    }, []);
+
+    
+
   useEffect(() => {
     return () => {
       audioStartedRef.current = false;
@@ -429,5 +468,8 @@ export function useWebRTC(localSocketId, users = []) {
     localStream,
     remoteStreams,
     startAudio,
+    isMuted,
+    toggleMute,
+    leaveVoice,
   };
 }
