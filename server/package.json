@@ -10,7 +10,8 @@
     "test:schema": "node scripts/test-user-schema.js",
     "check:mongo": "node scripts/check-mongo.js",
     "test:proximity": "node scripts/test-proximity.js",
-    "check:nearby": "node scripts/check-nearby.js"
+    "check:nearby": "node scripts/check-nearby.js",
+    "bench:nearby": "node scripts/benchmark-nearby.js"
   },
   "keywords": [],
   "author": "",

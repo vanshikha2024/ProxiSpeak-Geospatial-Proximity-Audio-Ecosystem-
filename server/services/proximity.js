@@ -44,10 +44,38 @@ function toNumber(value) {
   return Number(value);
 }
 
+// Groups people into clusters. Two people are in the same cluster if they
+// are within `radius` px of each other, directly or through other people.
+// people: [{ x, y, ... }]  ->  array of clusters, each an array of people.
+function groupIntoClusters(people, radius) {
+  const parent = people.map((_, index) => index);
+
+  function find(index) {
+    if (parent[index] !== index) parent[index] = find(parent[index]);
+    return parent[index];
+  }
+
+  for (let i = 0; i < people.length; i++) {
+    for (let j = i + 1; j < people.length; j++) {
+      const gap = Math.hypot(people[i].x - people[j].x, people[i].y - people[j].y);
+      if (gap <= radius) parent[find(i)] = find(j);
+    }
+  }
+
+  const clusters = new Map();
+  people.forEach((person, index) => {
+    const root = find(index);
+    if (!clusters.has(root)) clusters.set(root, []);
+    clusters.get(root).push(person);
+  });
+  return Array.from(clusters.values());
+}
+
 module.exports = {
   SAVE_EVERY_MS,
   DEFAULT_RADIUS,
   MAX_RADIUS,
   nextSaveDelay,
   parseNearbyParams,
+  groupIntoClusters,
 };

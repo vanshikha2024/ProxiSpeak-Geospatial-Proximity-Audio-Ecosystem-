@@ -3,7 +3,7 @@
 // Run with:  npm run test:proximity
 // ---------------------------------------------------------------
 const assert = require("node:assert/strict");
-const { nextSaveDelay, parseNearbyParams } = require("../services/proximity");
+const { nextSaveDelay, parseNearbyParams, groupIntoClusters } = require("../services/proximity");
 const User = require("../models/User");
 
 let passed = 0;
@@ -57,6 +57,32 @@ check("the nearby query filters by room, online users and a $near radius", () =>
   assert.equal(query.roomId, "main-office");
   assert.equal(query.isOnline, true);
   assert.deepEqual(query["location.coordinates"], { $near: [10, 20], $maxDistance: 100 });
+});
+
+check("people within 100 px form one cluster, far groups form another", () => {
+  const people = [
+    { id: "a", x: 0, y: 0 },
+    { id: "b", x: 60, y: 0 },
+    { id: "c", x: 500, y: 0 },
+    { id: "d", x: 540, y: 0 },
+  ];
+  const clusters = groupIntoClusters(people, 100).map((c) => c.map((p) => p.id).sort());
+  assert.deepEqual(clusters.map((c) => c.join("")).sort(), ["ab", "cd"]);
+});
+
+check("a chain links people who are not close to each other directly", () => {
+  // A and C are 180 px apart, but B is within 100 px of both
+  const people = [
+    { id: "A", x: 0, y: 0 },
+    { id: "B", x: 90, y: 0 },
+    { id: "C", x: 180, y: 0 },
+  ];
+  assert.equal(groupIntoClusters(people, 100).length, 1);
+});
+
+check("a lone person is a cluster of one, and no people gives no clusters", () => {
+  assert.equal(groupIntoClusters([{ x: 5, y: 5 }], 100)[0].length, 1);
+  assert.deepEqual(groupIntoClusters([], 100), []);
 });
 
 console.log(`\n${passed} checks passed`);
