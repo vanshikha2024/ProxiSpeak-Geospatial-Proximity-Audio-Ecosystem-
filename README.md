@@ -166,3 +166,23 @@ npm run test:audio
 Expected result: `1 passed`. If you already have Chrome installed and
 Playwright cannot download its browser, set `PW_CHROME` to your Chrome path
 before running the check.
+
+## Week 2 checklist (where each requirement lives)
+
+| Requirement (project document, Week 1–2) | Where it is | How to check |
+|---|---|---|
+| Store avatar positions in MongoDB (geospatial schema) | `server/models/User.js` (2d index on `location.coordinates`) | `npm run test:schema`, `npm run check:mongo` |
+| Save positions without writing on every move | `server/services/positionSaver.js` (at most once per second) | `npm run test:proximity` (timing rules) |
+| `$near` query to find people close together | `User.findNearby` in `server/models/User.js`, endpoint in `server/index.js` (`/api/users/nearby`) | `npm run check:nearby` (needs MongoDB), or open the endpoint in a browser |
+| Only start a voice call within 100 px | `AUDIO_RADIUS = 100` in `client/src/config.js`, used in `client/src/utils/proximity.js` | `npm test` in `client` |
+| Keep a call open until 120 px, then drop it | `AUDIO_LEAVE_RADIUS = 120` in `client/src/config.js` | `npm test` in `client` |
+| Server signaling limited to 120 px | `SIGNAL_MAX_DISTANCE` in `server/index.js` | `npm run test:signaling` in `server` |
+| Clustering of nearby users | `groupIntoClusters` in `server/services/proximity.js` | `npm run test:proximity` |
+| Spatial audit: correct results, under 20 ms | `server/scripts/benchmark-nearby.js`, results in `server/audit-results.md` | `npm run bench:nearby` (needs MongoDB) |
+| WebRTC peer-to-peer audio using getUserMedia | `client/src/hooks/useMicrophone.js`, `client/src/hooks/usePeerConnections.js` | `npm run test:audio` in `client` |
+| Two browsers establish a WebRTC audio connection | `client/e2e/audio-check.spec.js` | `npm run test:audio` in `client` |
+
+**Note on $near and the live app:** MongoDB's `$near` powers the
+`/api/users/nearby` endpoint and the audit. The live nearby list and the
+voice decisions run in the browser and on the in-memory server list, so the
+app keeps working when the database is offline.
