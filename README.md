@@ -145,3 +145,24 @@ Live positions are stored in server memory and are lost when the server restarts
 5. Mute one side; show the level meter and the "You are muted" label.
 6. Walk apart; show the connection closing. Walk back; it reconnects.
 7. Run `npm run test:signaling` and `npm test` to show the checks passing.
+
+## Two-browser audio check (automated)
+
+This test opens two browsers, lets both join the same office, turns on their
+microphones, and checks that a voice connection and live audio work in both
+directions. It starts the backend and frontend automatically.
+
+First time only, install the test browser:
+```powershell
+cd client
+npx playwright install chromium
+```
+
+Then run the check:
+```powershell
+npm run test:audio
+```
+
+Expected result: `1 passed`. If you already have Chrome installed and
+Playwright cannot download its browser, set `PW_CHROME` to your Chrome path
+before running the check.
