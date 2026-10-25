@@ -48,7 +48,8 @@ async function main() {
     const near = await makeUser("Near", "r1", 150, 100); // 50 px away
     const far = await makeUser("Far", "r1", 500, 100); // 400 px away
     const other = await makeUser("Other", "r2", 110, 100); // different room
-    sockets.push(a, near, far, other);
+    const edge = await makeUser("Edge", "r1", 230, 100); // 130 px: beyond 120
+    sockets.push(a, near, far, other, edge);
 
     // Same room and close  -> the offer must arrive.
     a.emit("signal:offer", { to: near.id, offer: { sdp: "x" } });
@@ -56,6 +57,7 @@ async function main() {
     a.emit("signal:offer", { to: far.id, offer: { sdp: "x" } });
     // Different room       -> must be blocked.
     a.emit("signal:offer", { to: other.id, offer: { sdp: "x" } });
+    a.emit("signal:offer", { to: edge.id, offer: { sdp: "x" } });
     await wait(300);
 
     check("a nearby user in the same room receives the offer", () => {
@@ -68,6 +70,9 @@ async function main() {
     });
     check("a user in another room does NOT receive the offer", () => {
       assert.equal(other.received.length, 0);
+    });
+    check("a user 130 px away (beyond 120 px) does NOT receive the offer", () => {
+      assert.equal(edge.received.length, 0);
     });
 
     // Someone who never joined cannot signal.

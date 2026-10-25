@@ -58,10 +58,10 @@ const users = new Map();
 
 const DEFAULT_ROOM = "main-office";
 
-// People hear each other within 100 px (the browser connects at 100 and
-// disconnects at 120). The server allows signaling up to 150 px, which
-// leaves room for small network delays between the browsers.
-const SIGNAL_MAX_DISTANCE = 150;
+// People start a voice call within 100 px (the browser checks this).
+// A call stays open until 120 px, so the server allows signaling up to
+// 120 px. Anyone farther away cannot exchange signaling messages.
+const SIGNAL_MAX_DISTANCE = 120;
 
 // Clean text that comes from the browser (never trust it).
 function cleanName(value) {
