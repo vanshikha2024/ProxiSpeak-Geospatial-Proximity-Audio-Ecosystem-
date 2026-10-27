@@ -24,7 +24,7 @@ function App() {
   const nearbyUsers = useNearbyUsers(localPosition, users, userId, audioRadius);
   const interpolatedUsers = useInterpolatedAvatars(nearbyUsers);
   const localSocketId = socket.id;
-  const { remoteStreams, startAudio, isMuted, toggleMute, leaveVoice } = useWebRTC(localSocketId, nearbyUsers);
+  const { remoteStreams, connectionStatuses, speakingUsers, startAudio, isMuted, toggleMute, leaveVoice } = useWebRTC(localSocketId, nearbyUsers);
   const [voiceStarted, setVoiceStarted] = useState(false);
   const [voiceError, setVoiceError] = useState("");
   const remoteAudioUsers = remoteStreams.map((remote) => {
@@ -190,11 +190,9 @@ function App() {
         />
       )}
 
-      {joined && (<NearbyPanel nearbyUsers={nearbyUsers} audioRadius={audioRadius}/>
+      {joined && (<NearbyPanel nearbyUsers={nearbyUsers} audioRadius={audioRadius} connectionStatuses={connectionStatuses} speakingUsers={speakingUsers}/>
       )}
 
-      
-      
       {joined && (
         <div className="remote-audio">
           {remoteAudioUsers.map(({ socketId, stream, distance }) => {

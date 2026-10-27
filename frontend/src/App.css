@@ -203,3 +203,59 @@ button:disabled {
 .remote-audio {
   display: none;
 }
+
+
+.voice-status {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.voice-status-connected {
+  color: #166534;
+  background-color: #dcfce7;
+}
+
+.voice-status-connecting {
+  color: #92400e;
+  background-color: #fef3c7;
+}
+
+.voice-status-disconnected {
+  color: #991b1b;
+  background-color: #fee2e2;
+}
+
+.voice-status-not-in-voice {
+  color: #475569;
+  background-color: #e2e8f0;
+}
+
+
+.speaking-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 12px;
+  background-color: #dcfce7;
+  color: #166534;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  animation: speaking-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes speaking-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.6;
+  }
+}

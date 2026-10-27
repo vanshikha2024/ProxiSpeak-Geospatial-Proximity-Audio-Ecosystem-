@@ -11,6 +11,8 @@ const ICE_SERVERS = {
 export function useWebRTC(localSocketId, users = []) {
   const [localStream, setLocalStream] = useState(null);
   const [remoteStreams, setRemoteStreams] = useState([]);
+  const [connectionStatuses, setConnectionStatuses] = useState({});
+  const [speakingUsers, setSpeakingUsers] = useState({});
 
   const peersRef = useRef(new Map());
   const localStreamRef = useRef(null);
@@ -18,6 +20,55 @@ export function useWebRTC(localSocketId, users = []) {
   const audioStartedRef = useRef(false);
   const pendingIceRef = useRef(new Map());
   const pendingOffersRef = useRef(new Map());
+  const audioAnalyzersRef = useRef(new Map());
+  const speakingTimersRef = useRef(new Map());
+  const speakingAnimationRef = useRef(null);
+
+  const detectSpeaking = useCallback(() => {
+    const speakingThreshold = 12;
+
+    audioAnalyzersRef.current.forEach(
+      ({ analyser }, peerSocketId) => {
+        const data = new Uint8Array(analyser.fftSize);
+        analyser.getByteTimeDomainData(data);
+
+        let sum = 0;
+
+        for (const value of data) {
+          const normalized = (value - 128) / 128;
+          sum += normalized * normalized;
+        }
+
+        const rms = Math.sqrt(sum / data.length);
+        const isSpeaking = rms * 100 > speakingThreshold;
+
+        setSpeakingUsers((current) => {
+          if (current[peerSocketId] === isSpeaking) {
+            return current;
+          }
+
+          return {
+            ...current,
+            [peerSocketId]: isSpeaking,
+          };
+        });
+      }
+    );
+
+    speakingAnimationRef.current =
+      requestAnimationFrame(detectSpeaking);
+  }, []);
+
+  useEffect(() => {
+    speakingAnimationRef.current =
+      requestAnimationFrame(detectSpeaking);
+
+    return () => {
+      if (speakingAnimationRef.current !== null) {
+        cancelAnimationFrame(speakingAnimationRef.current);
+      }
+    };
+  }, [detectSpeaking]);
 
   useEffect(() => {
     usersRef.current = users;
@@ -46,6 +97,7 @@ export function useWebRTC(localSocketId, users = []) {
     return stream;
   }, []);
 
+
   const closePeer = useCallback((peerSocketId) => {
     const peer = peersRef.current.get(peerSocketId);
 
@@ -60,11 +112,33 @@ export function useWebRTC(localSocketId, users = []) {
 
     pendingIceRef.current.delete(peerSocketId);
     pendingOffersRef.current.delete(peerSocketId);
+    const audioAnalyzer =
+      audioAnalyzersRef.current.get(peerSocketId);
+
+    if (audioAnalyzer) {
+      audioAnalyzer.source.disconnect();
+      audioAnalyzer.analyser.disconnect();
+      audioAnalyzer.context.close().catch(() => {});
+      audioAnalyzersRef.current.delete(peerSocketId);
+    }
+
+setSpeakingUsers((current) => {
+  const next = { ...current };
+  delete next[peerSocketId];
+  return next;
+});
 
     setRemoteStreams((current) =>
       current.filter((item) => item.socketId !== peerSocketId)
     );
+
+    setConnectionStatuses((current) => {
+      const next = { ...current };
+      delete next[peerSocketId];
+      return next;
+    });
   }, []);
+
 
   const flushPendingIce = useCallback(async (peerSocketId, pc) => {
     if (!pc.remoteDescription) return;
@@ -114,6 +188,11 @@ export function useWebRTC(localSocketId, users = []) {
 
       peersRef.current.set(peerSocketId, { pc });
 
+      setConnectionStatuses((current) => ({
+        ...current,
+        [peerSocketId]: "connecting",
+      }));
+
       stream.getAudioTracks().forEach((track) => {
         pc.addTrack(track, stream);
       });
@@ -132,10 +211,41 @@ export function useWebRTC(localSocketId, users = []) {
         });
       };
 
+
       pc.ontrack = (event) => {
         const remoteStream =
           event.streams?.[0] ||
           new MediaStream([event.track]);
+
+        const AudioContextClass =
+          window.AudioContext || window.webkitAudioContext;
+
+        if (AudioContextClass) {
+          try {
+            const context = new AudioContextClass();
+            const source = context.createMediaStreamSource(remoteStream);
+            const analyser = context.createAnalyser();
+
+            analyser.fftSize = 512;
+            source.connect(analyser);
+
+            audioAnalyzersRef.current.get(peerSocketId)?.context.close();
+            audioAnalyzersRef.current.set(peerSocketId, {
+              context,
+              source,
+              analyser,
+            });
+
+            if (context.state === "suspended") {
+              context.resume().catch(console.error);
+            }
+          } catch (error) {
+            console.error(
+              "[WebRTC] Could not analyze remote audio:",
+              error
+            );
+          }
+        }
 
         setRemoteStreams((current) => {
           const existing = current.find(
@@ -160,16 +270,18 @@ export function useWebRTC(localSocketId, users = []) {
         });
       };
 
-      pc.onconnectionstatechange = () => {
-        console.log(
-          `[WebRTC] Peer ${peerSocketId}:`,
-          pc.connectionState
-        );
 
-        if (
-          pc.connectionState === "failed" ||
-          pc.connectionState === "closed"
-        ) {
+      pc.onconnectionstatechange = () => {
+        const status = pc.connectionState;
+
+        console.log(`[WebRTC] Peer ${peerSocketId}:`, status);
+
+        setConnectionStatuses((current) => ({
+          ...current,
+          [peerSocketId]: status,
+        }));
+
+        if (status === "failed" || status === "closed") {
           closePeer(peerSocketId);
         }
       };
@@ -442,7 +554,7 @@ export function useWebRTC(localSocketId, users = []) {
         pendingOffersRef.current.clear();
     }, []);
 
-    
+
 
   useEffect(() => {
     return () => {
@@ -467,6 +579,8 @@ export function useWebRTC(localSocketId, users = []) {
   return {
     localStream,
     remoteStreams,
+    connectionStatuses,
+    speakingUsers,
     startAudio,
     isMuted,
     toggleMute,
