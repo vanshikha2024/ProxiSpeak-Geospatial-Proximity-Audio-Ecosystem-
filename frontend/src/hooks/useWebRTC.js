@@ -127,7 +127,7 @@ export function useWebRTC(localSocketId, users = []) {
         }
 
         socket.emit("signal:ice", {
-          tosocketId: peerSocketId,
+          toSocketId: peerSocketId,
           candidate: event.candidate.toJSON(),
         });
       };
@@ -179,7 +179,7 @@ export function useWebRTC(localSocketId, users = []) {
         await pc.setLocalDescription(offer);
 
         socket.emit("signal:offer", {
-          tosocketId: peerSocketId,
+          toSocketId: peerSocketId,
           offer: pc.localDescription,
         });
       }
@@ -226,7 +226,7 @@ export function useWebRTC(localSocketId, users = []) {
         await pc.setLocalDescription(answer);
 
         socket.emit("signal:answer", {
-          tosocketId: fromSocketId,
+          toSocketId: fromSocketId,
           answer: pc.localDescription,
         });
 

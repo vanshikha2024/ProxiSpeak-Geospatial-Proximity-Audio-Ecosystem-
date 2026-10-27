@@ -1,0 +1,35 @@
+{
+  "name": "proxispeak-backend",
+  "version": "1.0.0",
+  "description": "Geospatial Proximity Audio Ecosystem - Node.js, Express & MongoDB Backend",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node scripts/test-sockets.js && node scripts/test-routes.js",
+    "test:sockets": "node scripts/test-sockets.js",
+    "test:routes": "node scripts/test-routes.js",
+    "test:week2": "node scripts/test-week2-baseline.js"
+  },
+  "keywords": [
+    "proxispeak",
+    "webrtc",
+    "socket.io",
+    "geospatial",
+    "proximity-audio",
+    "mongodb"
+  ],
+  "author": "ProxiSpeak Team",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "mongoose": "^8.9.5",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.4"
+  }
+}
