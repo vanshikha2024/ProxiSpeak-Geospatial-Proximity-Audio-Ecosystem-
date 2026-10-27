@@ -194,36 +194,40 @@ function App() {
       )}
 
       
+      
       {joined && (
         <div className="remote-audio">
-          {remoteAudioUsers.map(({ socketId, stream, distance }) => (
-            <audio
-              key={socketId}
-              autoPlay
-              playsInline
-              ref={(element) => {
-                if (!element) return;
+          {remoteAudioUsers.map(({ socketId, stream, distance }) => {
+            const radius =
+              Number.isFinite(audioRadius) && audioRadius > 0
+                ? audioRadius
+                : 100;
 
-                if (element.srcObject !== stream) {
-                  element.srcObject = stream;
-                }
+            const volume =
+              Number.isFinite(distance) && distance >= 0
+                ? Math.max(0, Math.min(1, 1 - distance / radius))
+                : 0;
 
-                const radius =
-                  Number.isFinite(audioRadius) && audioRadius > 0
-                    ? audioRadius
-                    : 100;
+            return (
+              <audio
+                key={socketId}
+                autoPlay
+                playsInline
+                ref={(element) => {
+                  if (!element) return;
 
-                const volume =
-                  Number.isFinite(distance) && distance >= 0
-                    ? Math.max(0, Math.min(1, 1 - distance / radius))
-                    : 0;
+                  if (element.srcObject !== stream) {
+                    element.srcObject = stream;
+                  }
 
-                element.volume = volume;
-              }}
-            />
-          ))}
+                  element.volume = volume;
+                }}
+              />
+            );
+          })}
         </div>
       )}
+
 
     </main>
   );
