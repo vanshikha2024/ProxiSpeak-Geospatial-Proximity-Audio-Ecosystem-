@@ -3,7 +3,7 @@ import User from '../models/User.js';
 import Room from '../models/Room.js';
 import { PERSISTENCE_THROTTLE_MS, DEFAULT_AUDIO_RADIUS } from '../config/constants.js';
 import { isWithinAudioRadius } from '../utils/proximity.js';
-
+import { getAvatarData, setAvatarData, deleteAvatarData, getRoomAvatars } from '../redis/avatarState.js';
 /**
  * In-memory cache for room audio radii:
  * Map<roomId, number>
@@ -188,7 +188,7 @@ export const validateSignalingRequest = async (io, socket, payload, signalType) 
       return null;
     }
   } else if (signalType === 'ice') {
-    if (!payload.candidate || (typeof payload.candidate !== 'object' && typeof payload.candidate !== 'string')) {
+    if (!payload.candidate || typeof payload.candidate !== 'object' || typeof payload.candidate.candidate !== 'string') {
       socket.emit('error', { message: 'Invalid signaling payload: candidate is required' });
       return null;
     }
@@ -320,6 +320,7 @@ export const registerSignalingHandlers = (io) => {
 
         // 5. Update in-memory registry
         activeAvatars.set(socket.id, avatarData);
+        setAvatarData(socket.id, avatarData);
         socket.data.avatar = avatarData;
 
         // Initialize throttle persistence state
@@ -334,9 +335,7 @@ export const registerSignalingHandlers = (io) => {
         socket.emit('avatar:joined', avatarData);
 
         // 7. Send room-scoped initial avatar list (ONLY avatars in the same room)
-        const roomAvatars = Array.from(activeAvatars.values()).filter(
-          (a) => String(a.roomId) === String(effectiveRoomId)
-        );
+        const roomAvatars = await getRoomAvatars(effectiveRoomId);
         socket.emit('avatars:initial', roomAvatars);
 
         // 8. Broadcast newcomer ONLY to other clients in the same room
@@ -353,9 +352,9 @@ export const registerSignalingHandlers = (io) => {
      * Client -> Server: avatar:move
      * Payload: { x: number, y: number }
      */
-    socket.on('avatar:move', (payload) => {
+    socket.on('avatar:move', async (payload) => {
       try {
-        const currentAvatar = activeAvatars.get(socket.id);
+        const currentAvatar = await getAvatarData(socket.id);
         if (!currentAvatar) {
           socket.emit('error', { message: 'Avatar has not joined yet' });
           return;
@@ -370,6 +369,7 @@ export const registerSignalingHandlers = (io) => {
         // 1. Immediately update in-memory coordinates
         currentAvatar.x = x;
         currentAvatar.y = y;
+        setAvatarData(socket.id, currentAvatar);
 
         // 2. Broadcast updated position ONLY to other occupants in the same room (no self-echo)
         const movePayload = {
@@ -487,6 +487,7 @@ export const registerSignalingHandlers = (io) => {
         }
 
         // Broadcast removal ONLY to remaining clients in the same room
+        await deleteAvatarData(socket.id, avatar.roomId);
         io.to(avatar.roomId).emit('avatar:left', {
           avatarId: avatar.avatarId,
           socketId: socket.id,
