@@ -9,6 +9,5 @@ const positionSchema = new mongoose.Schema({
 }, { timestamps: true, versionKey: false });
 
 positionSchema.index({ roomId: 1 });
-// Canvas x/y values are planar pixel coordinates. Do not use a 2dsphere index
-// unless coordinates are real longitude/latitude or have been transformed appropriately.
+
 export default mongoose.model('Position', positionSchema);
