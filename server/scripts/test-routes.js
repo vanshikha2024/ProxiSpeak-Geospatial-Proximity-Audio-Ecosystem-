@@ -1,8 +1,11 @@
+import dotenv from 'dotenv';
+dotenv.config();
 import http from 'http';
 import mongoose from 'mongoose';
 import app from '../src/app.js';
 import Room from '../src/models/Room.js';
 import User from '../src/models/User.js';
+
 
 const TEST_PORT = 5056;
 const BASE_URL = `http://localhost:${TEST_PORT}`;

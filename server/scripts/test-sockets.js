@@ -1,3 +1,5 @@
+import dotenv from 'dotenv';
+dotenv.config();
 import http from 'http';
 import { io as Client } from 'socket.io-client';
 import mongoose from 'mongoose';
