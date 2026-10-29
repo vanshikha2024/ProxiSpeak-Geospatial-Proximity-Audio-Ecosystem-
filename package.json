@@ -10,7 +10,9 @@
     "test": "node scripts/test-sockets.js && node scripts/test-routes.js",
     "test:sockets": "node scripts/test-sockets.js",
     "test:routes": "node scripts/test-routes.js",
-    "test:week2": "node scripts/test-week2-baseline.js"
+    "test:week2": "node scripts/test-week2-baseline.js",
+    "test:multi-instance": "node scripts/test-multi-instance.js",
+    "test:cross-instance": "node scripts/test-cross-instance.js"
   },
   "keywords": [
     "proxispeak",
@@ -23,6 +25,7 @@
   "author": "ProxiSpeak Team",
   "license": "ISC",
   "dependencies": {
+    "@socket.io/redis-adapter": "^8.3.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",

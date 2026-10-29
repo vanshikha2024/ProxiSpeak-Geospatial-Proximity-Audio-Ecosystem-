@@ -1,9 +1,7 @@
 import { Server } from 'socket.io';
 import { registerSignalingHandlers, activeAvatars } from './signaling.js';
-import redisAdapter from 'socket.io-redis';
+import { createAdapter } from '@socket.io/redis-adapter';
 import { getPubClient, getSubClient } from '../config/redis.js';
-const { createAdapter } = redisAdapter;
-
 
 /**
  * Initializes Socket.io server attached to the HTTP server instance.
@@ -24,7 +22,7 @@ export const initSocket = (httpServer) => {
   const pub = getPubClient();
   const sub = getSubClient();
   if (pub && sub) {
-    io.adapter(createAdapter({ pubClient: pub, subClient: sub }));
+    io.adapter(createAdapter(pub, sub));
     console.log('[Redis] Socket.IO adapter attached');
   } else {
     console.log('[Redis] Socket.IO adapter not attached (Redis disabled)');

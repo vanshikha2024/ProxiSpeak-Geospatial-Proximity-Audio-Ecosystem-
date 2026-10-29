@@ -5,6 +5,17 @@ let client = null;
 const fallbackMap = new Map(); // socketId -> avatar data
 const fallbackRoomSets = new Map(); // roomId -> Set of socketIds
 
+const parseAvatarFields = (data) => {
+  if (!data || typeof data !== 'object') return null;
+  const parsed = { ...data };
+  if (parsed.x !== undefined) parsed.x = Number(parsed.x);
+  if (parsed.y !== undefined) parsed.y = Number(parsed.y);
+  if (parsed.isOnline !== undefined) {
+    parsed.isOnline = parsed.isOnline === 'true' || parsed.isOnline === true;
+  }
+  return parsed;
+};
+
 export const initAvatarRedis = async () => {
   const redisUrl = process.env.REDIS_URL;
   if (!redisUrl) {
@@ -13,12 +24,21 @@ export const initAvatarRedis = async () => {
     return;
   }
   try {
-    client = new IORedis(redisUrl);
+    client = new IORedis(redisUrl, {
+      maxRetriesPerRequest: 1,
+      connectTimeout: 2000,
+      lazyConnect: true,
+      retryStrategy: (times) => (times > 2 ? null : Math.min(times * 100, 500)),
+    });
     client.on('error', (err) => console.error('[AvatarRedis] connection error:', err.message));
+    await client.connect();
     await client.ping();
     console.log('[AvatarRedis] Connected');
   } catch (err) {
     console.error('[AvatarRedis] Failed to connect:', err.message);
+    if (client) {
+      try { client.disconnect(); } catch (_) {}
+    }
     client = null;
   }
 };
@@ -44,22 +64,29 @@ export const getAvatarData = async (socketId) => {
   if (!client) return fallbackMap.get(socketId) ?? null;
   const key = `avatar:${socketId}`;
   const data = await client.hgetall(key);
-  return Object.keys(data).length ? data : null;
+  if (!data || !Object.keys(data).length) return null;
+  return parseAvatarFields(data);
 };
 
 export const deleteAvatarData = async (socketId, roomId) => {
   if (!client) {
+    const data = fallbackMap.get(socketId);
+    const rId = roomId || data?.roomId;
     fallbackMap.delete(socketId);
-    if (roomId) {
-      const set = fallbackRoomSets.get(roomId);
+    if (rId) {
+      const set = fallbackRoomSets.get(rId);
       if (set) set.delete(socketId);
     }
     return;
   }
   const key = `avatar:${socketId}`;
+  let rId = roomId;
+  if (!rId) {
+    rId = await client.hget(key, 'roomId');
+  }
   await client.del(key);
-  if (roomId) {
-    await client.srem(`room:${roomId}:avatars`, socketId);
+  if (rId) {
+    await client.srem(`room:${rId}:avatars`, socketId);
   }
 };
 
@@ -75,15 +102,23 @@ export const getRoomAvatars = async (roomId) => {
   }
   const setKey = `room:${roomId}:avatars`;
   const socketIds = await client.smembers(setKey);
+  if (!socketIds || socketIds.length === 0) return [];
   const pipeline = client.pipeline();
   socketIds.forEach((sid) => pipeline.hgetall(`avatar:${sid}`));
   const results = await pipeline.exec();
-  return results.map(([err, data]) => (err ? null : data)).filter(Boolean);
+  return results
+    .map(([err, data]) => {
+      if (err || !data || !Object.keys(data).length) return null;
+      return parseAvatarFields(data);
+    })
+    .filter(Boolean);
 };
 
 export const closeAvatarRedis = async () => {
   if (client) {
-    await client.quit();
+    try {
+      await client.quit();
+    } catch (_) {}
     client = null;
   }
 };

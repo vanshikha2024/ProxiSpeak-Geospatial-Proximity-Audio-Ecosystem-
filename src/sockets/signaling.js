@@ -150,7 +150,7 @@ export const persistPositionThrottled = (socketId, avatarId, coordinates) => {
  */
 export const validateSignalingRequest = async (io, socket, payload, signalType) => {
   // 1. Validate sender registration
-  const currentAvatar = activeAvatars.get(socket.id);
+  const currentAvatar = (await getAvatarData(socket.id)) || activeAvatars.get(socket.id);
   if (!currentAvatar) {
     socket.emit('error', { message: 'Avatar has not joined yet' });
     return null;
@@ -195,10 +195,15 @@ export const validateSignalingRequest = async (io, socket, payload, signalType) 
   }
 
   // 3. Validate target socket existence and connection
-  const targetAvatar = activeAvatars.get(cleanToSocketId);
+  const targetAvatar = (await getAvatarData(cleanToSocketId)) || activeAvatars.get(cleanToSocketId);
   const targetSocket = io.sockets.sockets.get(cleanToSocketId);
 
-  if (!targetAvatar || !targetSocket || !targetSocket.connected) {
+  if (targetSocket && !targetSocket.connected) {
+    socket.emit('error', { message: 'Target peer not found or disconnected' });
+    return null;
+  }
+
+  if (!targetAvatar) {
     socket.emit('error', { message: 'Target peer not found or disconnected' });
     return null;
   }
@@ -211,7 +216,11 @@ export const validateSignalingRequest = async (io, socket, payload, signalType) 
 
   // 5. Validate proximity within room audio radius
   const audioRadius = await getRoomAudioRadius(currentAvatar.roomId);
-  if (!isWithinAudioRadius(currentAvatar.x, currentAvatar.y, targetAvatar.x, targetAvatar.y, audioRadius)) {
+  const curX = Number(currentAvatar.x);
+  const curY = Number(currentAvatar.y);
+  const tarX = Number(targetAvatar.x);
+  const tarY = Number(targetAvatar.y);
+  if (!isWithinAudioRadius(curX, curY, tarX, tarY, audioRadius)) {
     socket.emit('error', { message: 'Target peer is out of proximity audio range' });
     return null;
   }
@@ -320,7 +329,7 @@ export const registerSignalingHandlers = (io) => {
 
         // 5. Update in-memory registry
         activeAvatars.set(socket.id, avatarData);
-        setAvatarData(socket.id, avatarData);
+        await setAvatarData(socket.id, avatarData);
         socket.data.avatar = avatarData;
 
         // Initialize throttle persistence state
@@ -369,7 +378,12 @@ export const registerSignalingHandlers = (io) => {
         // 1. Immediately update in-memory coordinates
         currentAvatar.x = x;
         currentAvatar.y = y;
-        setAvatarData(socket.id, currentAvatar);
+        await setAvatarData(socket.id, currentAvatar);
+        const local = activeAvatars.get(socket.id);
+        if (local) {
+          local.x = x;
+          local.y = y;
+        }
 
         // 2. Broadcast updated position ONLY to other occupants in the same room (no self-echo)
         const movePayload = {
@@ -457,7 +471,7 @@ export const registerSignalingHandlers = (io) => {
     socket.on('disconnect', async (reason) => {
       console.log(`[Socket.io] Client disconnected | Socket ID: ${socket.id} | Reason: ${reason}`);
 
-      const avatar = activeAvatars.get(socket.id);
+      const avatar = activeAvatars.get(socket.id) || (await getAvatarData(socket.id));
 
       // Clean up throttling timers
       const throttle = persistenceState.get(socket.id);

@@ -4,6 +4,13 @@ let client = null;
 let pubClient = null;
 let subClient = null;
 
+const createRedisOptions = () => ({
+  maxRetriesPerRequest: 1,
+  connectTimeout: 2000,
+  lazyConnect: true,
+  retryStrategy: (times) => (times > 2 ? null : Math.min(times * 100, 500)),
+});
+
 /**
  * Initialize Redis connection based on REDIS_URL environment variable.
  * If REDIS_URL is not set, operates in single‑instance mode (no error).
@@ -16,22 +23,27 @@ export const initRedis = async () => {
   }
   try {
     // Main client (optional for other uses)
-    client = new IORedis(redisUrl);
+    client = new IORedis(redisUrl, createRedisOptions());
     client.on('error', (err) => {
       console.error('[Redis] Connection error:', err.message);
     });
+    await client.connect();
     await client.ping();
     console.log('[Redis] Connected (client) to', redisUrl);
 
     // Separate pub/sub clients for the Socket.IO adapter (recommended)
-    pubClient = new IORedis(redisUrl);
-    subClient = new IORedis(redisUrl);
+    pubClient = new IORedis(redisUrl, createRedisOptions());
+    subClient = new IORedis(redisUrl, createRedisOptions());
     pubClient.on('error', (err) => console.error('[Redis] Pub error:', err.message));
     subClient.on('error', (err) => console.error('[Redis] Sub error:', err.message));
+    await Promise.all([pubClient.connect(), subClient.connect()]);
     await Promise.all([pubClient.ping(), subClient.ping()]);
     console.log('[Redis] Pub/Sub clients ready');
   } catch (err) {
     console.error('[Redis] Failed to connect to', redisUrl, ':', err.message);
+    if (client) { try { client.disconnect(); } catch (_) {} }
+    if (pubClient) { try { pubClient.disconnect(); } catch (_) {} }
+    if (subClient) { try { subClient.disconnect(); } catch (_) {} }
     client = pubClient = subClient = null;
   }
 };

@@ -14,15 +14,16 @@ const PORT = process.env.PORT || 5000;
 // Create HTTP server wrapping Express app
 const server = http.createServer(app);
 
-// Initialize Socket.io on the HTTP server
-const io = initSocket(server);
-// Initialize Redis (optional, based on REDIS_URL)
-initRedis();
-initAvatarRedis();
+let io = null;
 
-// Connect to MongoDB & start server
+// Connect to MongoDB, Redis & start server
 const startServer = async () => {
   await connectDB();
+  await initRedis();
+  await initAvatarRedis();
+
+  // Initialize Socket.io on the HTTP server after Redis connections are established
+  io = initSocket(server);
 
   server.listen(PORT, () => {
     console.log(`==================================================`);
@@ -34,11 +35,17 @@ const startServer = async () => {
 };
 
 startServer();
+
 // Graceful shutdown handling
 const shutdown = async () => {
   console.log('⚡ Shutting down server...');
+  if (io) {
+    try {
+      await new Promise((resolve) => io.close(resolve));
+    } catch (_) {}
+  }
   await closeRedis();
-await closeAvatarRedis();
+  await closeAvatarRedis();
   server.close(() => {
     console.log('🛑 Server closed');
     process.exit(0);
