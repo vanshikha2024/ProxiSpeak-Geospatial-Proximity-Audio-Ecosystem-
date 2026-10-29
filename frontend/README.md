@@ -1,0 +1,3 @@
+### Frontend Development – ProxiSpeak
+
+Implemented real-time frontend networking and remote avatar synchronization using React, Vite, and Socket.IO. Developed avatar movement synchronization with throttled position updates, nearby-user detection based on distance, and smooth remote avatar interpolation. Integrated WebRTC for real-time voice communication and implemented proximity-based audio attenuation to adjust voice volume according to the distance between users. Added voice controls, including mute/unmute and leave voice functionality, to enhance the virtual office experience.
