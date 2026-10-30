@@ -259,6 +259,8 @@ Ensure the configuration variables in `.env` match your local environment:
 ```env
 PORT=5000
 MONGODB_URI=mongodb://localhost:27017/proxispeak
+MONGODB_TEST_URI=mongodb://localhost:27017/proxispeak_test
+REDIS_URL=redis://localhost:6379
 CORS_ORIGIN=*
 NODE_ENV=development
 ```
@@ -326,3 +328,50 @@ To test manually with two interactive clients:
    ```
 9. Verify Client B receives `avatar:moved` with Alice's new coordinates, while Client A does not receive an echo.
 10. Disconnect Client A and verify Client B receives `avatar:left` with Alice's `avatarId`.
+
+---
+
+## Week 3: Backend Horizontal Scaling with Redis
+
+Week 3 enables multi-instance backend clustering using Redis Pub/Sub and distributed state caching without altering existing client-side Socket.IO or REST contracts.
+
+### 1. Key Capabilities
+- **Cross-Instance Event Broadcasting:** Utilizes `@socket.io/redis-adapter` to publish and subscribe to avatar movement, join, and departure events across multiple independent Node.js processes.
+- **Distributed Avatar State:** Shared avatar positions and room memberships are cached in Redis Hashes (`avatar:<socketId>`) and Sets (`room:<roomId>:avatars`), allowing any instance to resolve peer locations in real time.
+- **Cross-Instance WebRTC Signaling:** Relays `signal:offer`, `signal:answer`, and `signal:ice` packets between clients connected to different server instances, while enforcing room boundary isolation and Euclidean audio proximity ($d \le r_{\text{audio}}$).
+- **Graceful Single-Instance Fallback:** If `REDIS_URL` is unset or Redis is unreachable, backend instances fall back to process-local in-memory storage without crashing.
+- **Safe Database Teardown:** Tests use an isolated database (`proxispeak_test`) with automatic cleanup.
+
+### 2. Starting Two Backend Instances Locally
+
+1. Start your local Redis instance on port 6379 (`redis-server` or `docker run -p 6379:6379 redis:alpine`).
+2. Start Instance 1 in Terminal 1:
+   ```bash
+   PORT=5081 REDIS_URL=redis://localhost:6379 npm start
+   ```
+3. Start Instance 2 in Terminal 2:
+   ```bash
+   PORT=5082 REDIS_URL=redis://localhost:6379 npm start
+   ```
+4. Connect test clients to either port (`ws://localhost:5081` or `ws://localhost:5082`) using identical room IDs; movements and WebRTC signaling will be exchanged seamlessly across instances.
+
+### 3. Automated Test Commands
+
+```bash
+# Full test suite (sockets + routes)
+npm test
+
+# Week 2 geospatial & audio radius verification
+MONGODB_TEST_URI="mongodb://localhost:27017/proxispeak_test" npm run test:week2
+
+# Cross-instance Redis adapter smoke test
+REDIS_URL="redis://localhost:6379" npm run test:cross-instance
+
+# Comprehensive multi-instance integration & performance suite (33 checks)
+REDIS_URL="redis://localhost:6379" MONGODB_TEST_URI="mongodb://localhost:27017/proxispeak_test" npm run test:multi-instance
+```
+
+### 4. Known Limitations & Week 4 Readiness
+- **Single Redis Broker:** High-availability Redis (Sentinel / Cluster failover) is not yet configured.
+- **WHATWG Restricted Ports:** Do not use ports 5060 or 5061 (reserved for SIP protocol and blocked by `fetch`).
+- **Week 4 Preview:** Backend architecture is decoupled and ready for Week 4 custom room layout persistence, wall collision boundaries, and furniture object placement.

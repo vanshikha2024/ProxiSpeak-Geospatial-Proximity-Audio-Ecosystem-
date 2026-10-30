@@ -1,7 +1,7 @@
 # Week 3 — Day 6: Multi-Instance Integration Tests & Verification
 
-**Date:** 29 October 2026  
-**Branch:** `TeamLeader`  
+**Date:** 29 October 2026
+**Branch:** `TeamLeader`
 **Commit Message:** `test: verify multi-instance socket communication`
 
 ---
@@ -73,4 +73,3 @@ git commit -m "test: verify multi-instance socket communication"
 git push origin TeamLeader
 ```
 *(Never force-push.)*
-

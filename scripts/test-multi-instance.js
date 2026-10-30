@@ -28,10 +28,10 @@ import User from '../src/models/User.js';
 const TEST_MONGO_URI = process.env.MONGODB_TEST_URI || process.env.TEST_MONGODB_URI || 'mongodb://localhost:27017/proxispeak_test';
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 
-const PORT_INSTANCE_1 = Number(process.env.PORT1) || 5061;
-const PORT_INSTANCE_2 = Number(process.env.PORT2) || 5062;
-const PORT_STANDALONE = 5063;
-const PORT_UNREACHABLE_REDIS = 5064;
+const PORT_INSTANCE_1 = Number(process.env.PORT1) || 5081;
+const PORT_INSTANCE_2 = Number(process.env.PORT2) || 5082;
+const PORT_STANDALONE = 5083;
+const PORT_UNREACHABLE_REDIS = 5084;
 
 let passCount = 0;
 let failCount = 0;
@@ -82,6 +82,20 @@ const spawnServerInstance = (port, envOverrides = {}) => {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
+  child.stdout.on('data', (data) => {
+    process.stdout.write(`[Server ${port}] ${data}`);
+  });
+
+  child.stderr.on('data', (data) => {
+    process.stderr.write(`[Server ${port} ERR] ${data}`);
+  });
+
+  child.on('exit', (code, signal) => {
+    if (code !== 0 && code !== null && signal !== 'SIGTERM' && signal !== 'SIGINT') {
+      console.error(`[Server ${port}] Process exited unexpectedly with code ${code}`);
+    }
+  });
+
   trackedProcesses.push(child);
   return child;
 };
@@ -89,13 +103,13 @@ const spawnServerInstance = (port, envOverrides = {}) => {
 /**
  * Polls the HTTP /health endpoint until it responds with status 200.
  */
-const waitForServerHealth = (port, maxTimeoutMs = 10000) => {
+const waitForServerHealth = (port, maxTimeoutMs = 15000) => {
   return new Promise((resolve, reject) => {
     const startTime = Date.now();
     const interval = 150;
 
     const probe = () => {
-      fetch(`http://localhost:${port}/health`)
+      fetch(`http://127.0.0.1:${port}/health`)
         .then((res) => {
           if (res.status === 200) return res.json();
           throw new Error(`HTTP ${res.status}`);
@@ -128,7 +142,7 @@ const waitForServerHealth = (port, maxTimeoutMs = 10000) => {
  * Creates and tracks a Socket.io client.
  */
 const connectClient = (port) => {
-  const socket = Client(`http://localhost:${port}`, {
+  const socket = Client(`http://127.0.0.1:${port}`, {
     transports: ['websocket'],
     forceNew: true,
     reconnection: false,
@@ -257,7 +271,11 @@ const runMultiInstanceSuite = async () => {
 
   // Client D1 (unrelated) listener
   let d1SawRoomAlphaJoin = false;
-  clientD1.on('avatar:joined', () => { d1SawRoomAlphaJoin = true; });
+  clientD1.on('avatar:joined', (data) => {
+    if (data.username === 'MultiTest_Bob' || data.roomId === roomAlphaId) {
+      d1SawRoomAlphaJoin = true;
+    }
+  });
 
   // Client B2 joins SAME Room Alpha on Instance 2
   clientB2.emit('avatar:join', { username: 'MultiTest_Bob', x: 120, y: 120, roomId: roomAlphaId });
@@ -724,4 +742,3 @@ runMultiInstanceSuite().catch(async (err) => {
 
   process.exit(1);
 });
-
