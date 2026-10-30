@@ -6,7 +6,6 @@ import Position from '../models/Position.js';
 const router = Router();
 const validId = (id) => mongoose.isValidObjectId(id);
 
-// Create a user (authentication is not included in this starter).
 router.post('/', async (req, res, next) => {
   try {
     const { username, email, avatar } = req.body;
