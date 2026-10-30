@@ -19,13 +19,20 @@ body{
   gap: 24px;
 }
 
-.welcome-card{
+.welcome-card {
   width: 100%;
-  max-width: 430px;
+  max-width: 460px;
   padding: 36px;
   background: #1b2638;
+  border: 1px solid #334155;
   border-radius: 20px;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.welcome-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 24px 55px rgba(0, 0, 0, 0.35);
 }
 
 .logo{
@@ -65,35 +72,43 @@ label{
   font-weight: bold;
 }
 
-input{
+input {
   width: 100%;
-  padding: 13px;
+  padding: 14px;
   border: 1px solid #46546a;
-  border-radius: 9px;
+  border-radius: 10px;
   outline: none;
   background: #111b2b;
   color: white;
   font-size: 15px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-input:focus{
+input:focus {
   border-color: #818cf8;
+  box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.18);
 }
 
-button{
+button {
   margin-top: 16px;
   padding: 14px;
   border: none;
-  border-radius: 9px;
+  border-radius: 10px;
   background: #6366f1;
   color: white;
   font-size: 16px;
   font-weight: bold;
   cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
 }
 
-button:hover{
+button:hover:not(:disabled) {
   background: #4f46e5;
+  transform: translateY(-2px);
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.98);
 }
 
 .footer-text{
@@ -257,5 +272,35 @@ button:disabled {
 
   50% {
     opacity: 0.6;
+  }
+}
+/* Responsive layout */
+@media (max-width: 600px) {
+  .app {
+    padding: 16px;
+    gap: 16px;
+  }
+
+  .welcome-card {
+    padding: 24px 18px;
+    border-radius: 16px;
+  }
+
+  h1 {
+    font-size: 28px;
+  }
+
+  .voice-controls {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .voice-controls button {
+    width: 100%;
+  }
+
+  .nearby-panel {
+    width: 100%;
+    overflow-x: auto;
   }
 }
