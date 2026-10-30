@@ -13,6 +13,8 @@ import VoiceControls from "./components/VoiceControls";
 import { useMicrophone } from "./hooks/useMicrophone";
 import { usePeerConnections } from "./hooks/usePeerConnections";
 import { useSocket } from "./hooks/useSocket";
+import { volumeForDistance } from "./audio/volume";
+import { AUDIO_RADIUS } from "./config";
 
 export default function App() {
   const {
@@ -35,6 +37,12 @@ export default function App() {
 
   // Just the ids of the nearby people (the hook only needs ids).
   const nearbyIds = useMemo(() => nearby.map((user) => user.id), [nearby]);
+
+  // How loud each nearby person is, from their distance (0 to 1)
+  const volumes = useMemo(
+    () => Object.fromEntries(nearby.map((user) => [user.id, volumeForDistance(user.distance, AUDIO_RADIUS)])),
+    [nearby]
+  );
 
   // WebRTC: connect my microphone to the people in my audio radius.
   const { remoteStreams, peerStates } = usePeerConnections({
@@ -77,7 +85,7 @@ export default function App() {
 
           <VoiceControls mic={mic} />
           <NearbyPanel nearby={nearby} peerStates={peerStates} />
-          <RemoteAudio streams={remoteStreams} />
+          <RemoteAudio streams={remoteStreams} volumes={volumes} />
         </section>
       )}
     </main>

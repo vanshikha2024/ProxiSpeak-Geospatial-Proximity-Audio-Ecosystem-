@@ -7,6 +7,7 @@ import { defineConfig } from "@playwright/test";
 
 // Optional: point to a Chrome you already have (PW_CHROME=...).
 // If it is not set, Playwright uses its own browser (see README).
+// eslint-disable-next-line no-undef
 const chromePath = process.env.PW_CHROME || undefined;
 
 export default defineConfig({

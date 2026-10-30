@@ -44,6 +44,11 @@ test("two browsers establish a WebRTC audio connection", async ({ browser }) => 
   await expect.poll(() => hasLiveRemoteAudio(a), { timeout: 15_000 }).toBe(true);
   await expect.poll(() => hasLiveRemoteAudio(b), { timeout: 15_000 }).toBe(true);
 
+  // Volume follows distance: the two avatars spawn 60 px apart,
+  // so each side should play the other at 1 - 60/100 = 0.40
+  await expect(a.locator("[data-volume]")).toHaveAttribute("data-volume", "0.40", { timeout: 10_000 });
+  await expect(b.locator("[data-volume]")).toHaveAttribute("data-volume", "0.40", { timeout: 10_000 });
+
   await personA.close();
   await personB.close();
 });
