@@ -8,4 +8,3 @@ const messageSchema = new mongoose.Schema({
 }, { versionKey: false });
 
 messageSchema.index({ roomId: 1, createdAt: -1 });
-
