@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "./App.css";
 import { useSocket } from "./hooks/useSocket";
 import { useRoom } from "./hooks/useRoom";
@@ -15,7 +15,9 @@ import { socket } from "./network/socket";
 
 function App() {
   const [name, setName] = useState("");
-  const [roomId, setRoomId] = useState("main-office");
+  const [rooms, setRooms] = useState([]);
+  const [roomsError, setRoomsError] = useState("");
+  const [roomId, setRoomId] = useState("");
   const { position: localPosition} = useLocalAvatar();
   const { isConnected } = useSocket();
   const { userId, users, roomError, joinRoom } = useRoom();
@@ -44,6 +46,31 @@ function App() {
       distance,
     };
   }).filter(Boolean);
+
+  useEffect(() => {
+    const serverUrl = import.meta.env.VITE_SERVER_URL;
+
+    async function loadRooms() {
+      try {
+        const response = await fetch(`${serverUrl}/api/rooms`);
+
+        if (!response.ok) {
+          throw new Error(`Could not load rooms (${response.status})`);
+        }
+
+        const result = await response.json();
+        const availableRooms = Array.isArray(result.data) ? result.data : [];
+
+        setRooms(availableRooms);
+        setRoomId((currentId) => currentId || availableRooms[0]?._id || "");
+        setRoomsError("");
+      } catch (error) {
+        setRoomsError(error.message || "Could not load rooms.");
+      }
+    }
+
+    loadRooms();
+  }, []);
 
   useAvatarSync(localPosition, userId)
 
@@ -102,14 +129,21 @@ function App() {
           />
 
           <label htmlFor="roomId">Office room</label>
-          <input
+          <select
             id="roomId"
-            type="text"
-            placeholder="Enter room ID"
             value={roomId}
             onChange={(event) => setRoomId(event.target.value)}
             required
-          />
+          >
+            <option value="">Select a room</option>
+            {rooms.map((room) => (
+              <option key={room._id} value={room._id}>
+                {room.name}
+              </option>
+            ))}
+          </select>
+
+          {roomsError && <p>{roomsError}</p>}
 
           <button type="submit" disabled={!isConnected}>
             Enter Office

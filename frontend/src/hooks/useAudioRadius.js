@@ -13,18 +13,22 @@ export function useAudioRadius(roomId) {
     async function fetchAudioRadius() {
       try {
         const response = await fetch(
-          `${SERVER_URL}/api/rooms/${encodeURIComponent(roomId)}/config`,
+          `${SERVER_URL}/api/rooms/${encodeURIComponent(roomId)}`,
           { signal: controller.signal }
         );
 
         if (!response.ok) {
-          throw new Error("Failed to fetch room configuration");
+          const details = await response.text();
+          throw new Error(`Room request failed (${response.status}): ${details}`);
         }
 
         const data = await response.json();
 
-        if (Number.isFinite(data.audioRadius) && data.audioRadius > 0) {
-          setAudioRadius(data.audioRadius);
+        if (
+          Number.isFinite(data.data?.audioRadius) &&
+          data.data.audioRadius > 0
+        ) {
+          setAudioRadius(data.data.audioRadius);
         }
       } catch (error) {
         if (error.name !== "AbortError") {
