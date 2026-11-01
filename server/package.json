@@ -13,7 +13,8 @@
     "check:nearby": "node scripts/check-nearby.js",
     "bench:nearby": "node scripts/benchmark-nearby.js",
     "test:store": "node scripts/test-store.js",
-    "test:scaling": "node scripts/test-scaling.js"
+    "test:scaling": "node scripts/test-scaling.js",
+    "test:ghosts": "node scripts/test-ghosts.js"
   },
   "keywords": [],
   "author": "",

@@ -4,10 +4,22 @@
 // If REDIS_URL is not set, the server runs alone and nothing changes.
 // If it is set, Socket.io sends events through Redis Pub/Sub, so a
 // person connected to server 1 can talk to a person on server 2.
+//
+// Each server sends a heartbeat to Redis every 5 seconds. If a server
+// stops, its heartbeat expires after 15 seconds and its people are
+// removed from the office lists.
 // ---------------------------------------------------------------
+const crypto = require("node:crypto");
 const { createClient } = require("redis");
 const { createAdapter } = require("@socket.io/redis-adapter");
 const { createMemoryStore, createRedisStore } = require("./userStore");
+
+const HEARTBEAT_EVERY_MS = 5000;
+const HEARTBEAT_TIMEOUT_MS = 15000;
+
+function sendHeartbeat(client, serverId) {
+  return client.set(`proxispeak:server:${serverId}`, "1", { PX: HEARTBEAT_TIMEOUT_MS });
+}
 
 async function setupScaling(io) {
   const url = process.env.REDIS_URL;
@@ -27,8 +39,19 @@ async function setupScaling(io) {
   await sub.connect();
 
   io.adapter(createAdapter(pub, sub));
+
+  // A unique name for this server, and a heartbeat that says it is alive
+  const serverId = crypto.randomUUID();
+  await sendHeartbeat(pub, serverId);
+  const timer = setInterval(() => {
+    sendHeartbeat(pub, serverId).catch((error) =>
+      console.error("[Redis] heartbeat failed:", error.message)
+    );
+  }, HEARTBEAT_EVERY_MS);
+  timer.unref();
+
   console.log("[Scaling] Connected to Redis: several servers can share one office.");
-  return createRedisStore(pub);
+  return createRedisStore(pub, serverId);
 }
 
-module.exports = { setupScaling };
+module.exports = { setupScaling, HEARTBEAT_TIMEOUT_MS };
