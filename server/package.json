@@ -11,17 +11,21 @@
     "check:mongo": "node scripts/check-mongo.js",
     "test:proximity": "node scripts/test-proximity.js",
     "check:nearby": "node scripts/check-nearby.js",
-    "bench:nearby": "node scripts/benchmark-nearby.js"
+    "bench:nearby": "node scripts/benchmark-nearby.js",
+    "test:store": "node scripts/test-store.js",
+    "test:scaling": "node scripts/test-scaling.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@socket.io/redis-adapter": "^8.3.0",
     "cors": "^2.8.6",
     "dotenv": "^18.0.7",
     "express": "^5.3.0",
     "mongoose": "^8.24.6",
+    "redis": "^4.7.1",
     "socket.io": "^4.8.4"
   },
   "devDependencies": {

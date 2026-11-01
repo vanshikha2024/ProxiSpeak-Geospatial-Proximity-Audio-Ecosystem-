@@ -186,3 +186,24 @@ before running the check.
 `/api/users/nearby` endpoint and the audit. The live nearby list and the
 voice decisions run in the browser and on the in-memory server list, so the
 app keeps working when the database is offline.
+
+## Running several servers (Redis Pub/Sub)
+
+By default, one server keeps everyone in memory. To run more than one server
+that shares the same offices, start Redis and set `REDIS_URL` in `server/.env`:
+
+```
+REDIS_URL=redis://localhost:6379
+```
+
+Then run the servers on different ports (for example `PORT=5000` and
+`PORT=5001`). People on different servers can see each other and talk.
+
+To check it:
+```powershell
+cd server
+$env:REDIS_URL="redis://localhost:6379"
+npm run test:scaling
+```
+
+Without `REDIS_URL`, the test is skipped and the single-server behaviour is unchanged.

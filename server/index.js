@@ -7,6 +7,7 @@ const connectDB = require("./config/db");
 const User = require("./models/User");
 const positionSaver = require("./services/positionSaver");
 const { parseNearbyParams } = require("./services/proximity");
+const { setupScaling } = require("./services/scaling");
 
 const app = express();
 const server = http.createServer(app);
@@ -52,9 +53,9 @@ const io = new Server(server, {
   cors: { origin: true },
 });
 
-// All connected users who have joined an office.
-// Map of socket id -> { id, name, room, x, y }
-const users = new Map();
+// Where the people in each office are kept (memory, or Redis when
+// REDIS_URL is set). It is set up before the server starts listening.
+let store = null;
 
 const DEFAULT_ROOM = "main-office";
 
@@ -75,63 +76,59 @@ function cleanRoom(value) {
   return /^[\w-]+$/.test(room) ? room : DEFAULT_ROOM;
 }
 
-// Everyone in ONE room.
-function usersInRoom(room) {
-  return Array.from(users.values()).filter((user) => user.room === room);
-}
-
 // Send the user list to everybody in a room (and nobody else).
-function broadcastRoom(room) {
-  io.to(room).emit("users:update", usersInRoom(room));
+async function broadcastRoom(room) {
+  io.to(room).emit("users:update", await store.listInRoom(room));
 }
 
 // Remove a user from their room and tell the others.
-function removeUser(socket) {
-  const user = users.get(socket.id);
+async function removeUser(socket) {
+  const user = await store.get(socket.id);
   if (!user) return;
 
-  users.delete(socket.id);
+  await store.delete(socket.id);
   positionSaver.leave(socket.id);
   socket.leave(user.room);
-  broadcastRoom(user.room);
+  await broadcastRoom(user.room);
 }
 
 io.on("connection", (socket) => {
   console.log(`User connected: ${socket.id}`);
 
   // The browser sends this after the person typed a name and room.
-  socket.on("user:join", (data) => {
-    removeUser(socket); // in case they were already in another room
+  socket.on("user:join", async (data) => {
+    await removeUser(socket); // in case they were already in another room
 
     const room = cleanRoom(data && data.roomId);
     const name = cleanName(data && data.username);
 
     // Spread new users out a little so they do not stand on each other.
-    const count = usersInRoom(room).length;
+    const count = (await store.listInRoom(room)).length;
     const x = 100 + (count % 8) * 60;
     const y = 100 + Math.floor(count / 8) * 60;
 
-    users.set(socket.id, { id: socket.id, name, room, x, y });
+    await store.set(socket.id, { id: socket.id, name, room, x, y });
     positionSaver.join(socket.id, { username: name, roomId: room, x, y });
     socket.join(room);
-    broadcastRoom(room);
+    await broadcastRoom(room);
     console.log(`${name} joined room "${room}"`);
   });
 
-  socket.on("position:update", (position) => {
+  socket.on("position:update", async (position) => {
     if (
       !position ||
       !Number.isFinite(position.x) ||
       !Number.isFinite(position.y)
     ) return;
 
-    const user = users.get(socket.id);
+    const user = await store.get(socket.id);
     if (!user) return; // ignore people who have not joined
 
     user.x = Math.max(18, Math.min(702, position.x));
     user.y = Math.max(18, Math.min(402, position.y));
+    await store.set(socket.id, user);
     positionSaver.moved(socket.id, user.x, user.y);
-    broadcastRoom(user.room);
+    await broadcastRoom(user.room);
   });
 
   // ---------- WebRTC signaling ----------
@@ -146,11 +143,11 @@ io.on("connection", (socket) => {
   ];
 
   SIGNALS.forEach(([eventName, key]) => {
-    socket.on(eventName, (data) => {
+    socket.on(eventName, async (data) => {
       if (!data || typeof data.to !== "string") return;
 
-      const sender = users.get(socket.id);
-      const target = users.get(data.to);
+      const sender = await store.get(socket.id);
+      const target = await store.get(data.to);
 
       // Only people who joined the SAME room may talk to each other.
       if (!sender || !target || sender.room !== target.room) return;
@@ -163,8 +160,8 @@ io.on("connection", (socket) => {
     });
   });
 
-  socket.on("disconnect", () => {
-    removeUser(socket);
+  socket.on("disconnect", async () => {
+    await removeUser(socket);
     console.log(`User disconnected: ${socket.id}`);
   });
 });
@@ -182,6 +179,15 @@ server.on("error", (error) => {
 
 connectDB(); // connect to MongoDB in the background (see config/db.js)
 
-server.listen(PORT, () => {
-  console.log(`ProxiSpeak server running at http://localhost:${PORT}`);
-});
+// Start the Redis link (if REDIS_URL is set) first, then accept people.
+setupScaling(io)
+  .then((userStore) => {
+    store = userStore;
+    server.listen(PORT, () => {
+      console.log(`ProxiSpeak server running at http://localhost:${PORT}`);
+    });
+  })
+  .catch((error) => {
+    console.error("[Scaling] Could not start:", error.message);
+    process.exit(1);
+  });
