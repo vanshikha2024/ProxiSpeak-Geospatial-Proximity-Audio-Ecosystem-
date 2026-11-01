@@ -11,5 +11,9 @@ export const DEFAULT_ROOM_WIDTH = 1920;
 export const DEFAULT_ROOM_HEIGHT = 1080;
 export const DEFAULT_ROOM_CAPACITY = 50;
 
+// Default avatar entry coordinates within room canvas
+export const DEFAULT_SPAWN_X = 0;
+export const DEFAULT_SPAWN_Y = 0;
+
 // Persistence throttle in milliseconds for avatar movement writes to MongoDB
 export const PERSISTENCE_THROTTLE_MS = 1000;

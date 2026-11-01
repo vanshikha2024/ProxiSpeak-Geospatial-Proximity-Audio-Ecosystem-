@@ -49,7 +49,19 @@ export const getRooms = async (req, res) => {
  */
 export const createRoom = async (req, res) => {
   try {
-    const { name, description, dimensions, audioRadius, capacity, isPrivate, passcode } = req.body;
+    const {
+      name,
+      description,
+      dimensions,
+      width,
+      height,
+      audioRadius,
+      capacity,
+      isPrivate,
+      passcode,
+      spawnPoint,
+      obstacles,
+    } = req.body;
 
     if (!name || typeof name !== 'string' || !name.trim()) {
       return res.status(400).json({
@@ -58,12 +70,19 @@ export const createRoom = async (req, res) => {
       });
     }
 
+    const roomWidth = width ?? dimensions?.width ?? DEFAULT_ROOM_WIDTH;
+    const roomHeight = height ?? dimensions?.height ?? DEFAULT_ROOM_HEIGHT;
+
     const room = await Room.create({
       name: name.trim(),
       description: description ? description.trim() : '',
-      dimensions: dimensions || { width: DEFAULT_ROOM_WIDTH, height: DEFAULT_ROOM_HEIGHT },
+      width: roomWidth,
+      height: roomHeight,
+      dimensions: { width: roomWidth, height: roomHeight },
       audioRadius: Number.isFinite(audioRadius) ? audioRadius : DEFAULT_AUDIO_RADIUS,
       capacity: Number.isFinite(capacity) ? capacity : DEFAULT_ROOM_CAPACITY,
+      spawnPoint: spawnPoint || { x: 0, y: 0 },
+      obstacles: Array.isArray(obstacles) ? obstacles : [],
       isPrivate: Boolean(isPrivate),
       passcode: passcode || null,
     });
@@ -74,6 +93,12 @@ export const createRoom = async (req, res) => {
       data: room,
     });
   } catch (error) {
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
     return res.status(500).json({
       success: false,
       message: 'Failed to create room',
