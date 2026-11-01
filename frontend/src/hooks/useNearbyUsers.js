@@ -1,29 +1,75 @@
 import { useMemo } from "react";
 import { socket } from "../network/socket";
+
 const DEFAULT_AUDIO_RADIUS = 100;
 
-export function useNearbyUsers(localPosition, users, currentUserId, audioRadius = DEFAULT_AUDIO_RADIUS) {
+function isValidPosition(position) {
+  return (
+    position !== null &&
+    typeof position === "object" &&
+    Number.isFinite(position.x) &&
+    Number.isFinite(position.y)
+  );
+}
+
+function getDistance(firstPosition, secondPosition) {
+  const dx = secondPosition.x - firstPosition.x;
+  const dy = secondPosition.y - firstPosition.y;
+
+  return Math.hypot(dx, dy);
+}
+
+function getAudioRadius(audioRadius) {
+  if (Number.isFinite(audioRadius) && audioRadius >= 0) {
+    return audioRadius;
+  }
+
+  return DEFAULT_AUDIO_RADIUS;
+}
+
+function getCurrentSocketId(currentUserId) {
+  return socket.id || currentUserId;
+}
+
+function isOtherUser(user, currentSocketId) {
+  return user?.socketId !== currentSocketId;
+}
+
+function normalizeUserPosition(user) {
+  return {
+    x: Number.isFinite(user?.x) ? user.x : 0,
+    y: Number.isFinite(user?.y) ? user.y : 0,
+  };
+}
+
+function createNearbyUser(user, localPosition, radius) {
+  const userPosition = normalizeUserPosition(user);
+  const distance = getDistance(localPosition, userPosition);
+
+  return {
+    ...user,
+    distance: Math.round(distance),
+    isNearby: distance <= radius,
+  };
+}
+
+export function useNearbyUsers(
+  localPosition,
+  users,
+  currentUserId,
+  audioRadius = DEFAULT_AUDIO_RADIUS,
+) {
   return useMemo(() => {
-    if (!localPosition || !Number.isFinite(localPosition.x) || !Number.isFinite(localPosition.y)){
-        return[];
+    if (!isValidPosition(localPosition)) {
+      return [];
     }
-    const radius = Number.isFinite(audioRadius) && audioRadius >= 0 ? audioRadius : DEFAULT_AUDIO_RADIUS;
-    return users
-      .filter((user) => {
-        const mySocketId = socket.id || currentUserId;
 
-        return user.socketId !== mySocketId;
-      })
-      .map((user) => {
-        const dx = (user.x ?? 0) - localPosition.x;
-        const dy = (user.y ?? 0) - localPosition.y;
-        const distance = Math.hypot(dx, dy);
+    const validUsers = Array.isArray(users) ? users : [];
+    const radius = getAudioRadius(audioRadius);
+    const currentSocketId = getCurrentSocketId(currentUserId);
 
-        return {
-          ...user,
-          distance: Math.round(distance),
-          isNearby: distance <= radius,
-        };
-      });
+    return validUsers
+      .filter((user) => isOtherUser(user, currentSocketId))
+      .map((user) => createNearbyUser(user, localPosition, radius));
   }, [localPosition, users, currentUserId, audioRadius]);
 }
