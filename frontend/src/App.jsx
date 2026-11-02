@@ -11,7 +11,7 @@ import { useInterpolatedAvatars } from "./hooks/useInterpolatedAvatars";
 import { useAudioRadius } from "./hooks/useAudioRadius";
 import { useWebRTC } from "./hooks/useWebRTC";
 import { socket } from "./network/socket";
-
+import RemoteAudio from "./components/RemoteAudio";
 
 function App() {
   const [name, setName] = useState("");
@@ -228,38 +228,11 @@ function App() {
       )}
 
       {joined && (
-        <div className="remote-audio">
-          {remoteAudioUsers.map(({ socketId, stream, distance }) => {
-            const radius =
-              Number.isFinite(audioRadius) && audioRadius > 0
-                ? audioRadius
-                : 100;
-
-            const volume =
-              Number.isFinite(distance) && distance >= 0
-                ? Math.max(0, Math.min(1, 1 - distance / radius))
-                : 0;
-
-            return (
-              <audio
-                key={socketId}
-                autoPlay
-                playsInline
-                ref={(element) => {
-                  if (!element) return;
-
-                  if (element.srcObject !== stream) {
-                    element.srcObject = stream;
-                  }
-
-                  element.volume = volume;
-                }}
-              />
-            );
-          })}
-        </div>
+        <RemoteAudio
+          users={remoteAudioUsers}
+          audioRadius={audioRadius}
+        />
       )}
-
 
     </main>
   );
