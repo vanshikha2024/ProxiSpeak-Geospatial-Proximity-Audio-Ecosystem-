@@ -25,6 +25,10 @@ export const AUDIO_RADIUS = 100;
 // (A little bigger than AUDIO_RADIUS so connections do not flicker.)
 export const AUDIO_LEAVE_RADIUS = 120;
 
+// The most people one person talks to at the same time (the "mesh" limit).
+// Keeps bandwidth and CPU steady when a crowd gathers.
+export const MAX_VOICE_PEERS = 6;
+
 // Where the backend server lives.
 // Set VITE_SERVER_URL in client/.env (see .env.example).
 // If it is not set, we use the local server on port 5000.

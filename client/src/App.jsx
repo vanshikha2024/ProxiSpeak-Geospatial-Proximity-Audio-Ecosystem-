@@ -14,7 +14,8 @@ import { useMicrophone } from "./hooks/useMicrophone";
 import { usePeerConnections } from "./hooks/usePeerConnections";
 import { useSocket } from "./hooks/useSocket";
 import { volumeForDistance } from "./audio/volume";
-import { AUDIO_RADIUS } from "./config";
+import { pickVoicePeers } from "./utils/voicePeers";
+import { AUDIO_RADIUS, MAX_VOICE_PEERS } from "./config";
 
 export default function App() {
   const {
@@ -36,7 +37,19 @@ export default function App() {
   const [nearby, setNearby] = useState([]);
 
   // Just the ids of the nearby people (the hook only needs ids).
-  const nearbyIds = useMemo(() => nearby.map((user) => user.id), [nearby]);
+  // Mesh limit: talk to at most MAX_VOICE_PEERS people at once.
+  // The people already connected keep their place (see voicePeers.js).
+  const [voiceIds, setVoiceIds] = useState([]);
+  const [seenNearby, setSeenNearby] = useState(nearby);
+  if (seenNearby !== nearby) {
+    // The nearby list changed: pick the voice people again (React pattern
+    // for updating state from a prop, instead of using an effect)
+    setSeenNearby(nearby);
+    setVoiceIds(
+      pickVoicePeers(nearby, MAX_VOICE_PEERS, new Set(voiceIds)).map((user) => user.id)
+    );
+  }
+  const nearbyIds = voiceIds;
 
   // How loud each nearby person is, from their distance (0 to 1)
   const volumes = useMemo(
