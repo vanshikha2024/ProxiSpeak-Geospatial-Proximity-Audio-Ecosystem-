@@ -5,7 +5,10 @@ import {
   DEFAULT_ROOM_WIDTH,
   DEFAULT_ROOM_HEIGHT,
   DEFAULT_ROOM_CAPACITY,
+  DEFAULT_SPAWN_X,
+  DEFAULT_SPAWN_Y,
 } from '../config/constants.js';
+import { validateRoomLayout } from '../utils/obstacleValidation.js';
 
 /**
  * GET /api/rooms
@@ -63,15 +66,26 @@ export const createRoom = async (req, res) => {
       obstacles,
     } = req.body;
 
-    if (!name || typeof name !== 'string' || !name.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Room name is required and cannot be empty',
-      });
-    }
-
     const roomWidth = width ?? dimensions?.width ?? DEFAULT_ROOM_WIDTH;
     const roomHeight = height ?? dimensions?.height ?? DEFAULT_ROOM_HEIGHT;
+
+    // Run reusable layout and obstacle validation
+    const layoutValidation = validateRoomLayout(
+      {
+        ...req.body,
+        width: roomWidth,
+        height: roomHeight,
+      },
+      { requireName: true }
+    );
+
+    if (!layoutValidation.isValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Room layout validation failed',
+        errors: layoutValidation.errors,
+      });
+    }
 
     const room = await Room.create({
       name: name.trim(),
@@ -81,7 +95,7 @@ export const createRoom = async (req, res) => {
       dimensions: { width: roomWidth, height: roomHeight },
       audioRadius: Number.isFinite(audioRadius) ? audioRadius : DEFAULT_AUDIO_RADIUS,
       capacity: Number.isFinite(capacity) ? capacity : DEFAULT_ROOM_CAPACITY,
-      spawnPoint: spawnPoint || { x: 0, y: 0 },
+      spawnPoint: spawnPoint || { x: DEFAULT_SPAWN_X, y: DEFAULT_SPAWN_Y },
       obstacles: Array.isArray(obstacles) ? obstacles : [],
       isPrivate: Boolean(isPrivate),
       passcode: passcode || null,

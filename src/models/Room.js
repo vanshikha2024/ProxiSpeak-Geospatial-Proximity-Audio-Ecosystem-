@@ -5,6 +5,7 @@ import {
   DEFAULT_SPAWN_X,
   DEFAULT_SPAWN_Y,
 } from '../config/constants.js';
+import { isPointInsideObstacle } from '../utils/obstacleValidation.js';
 
 /**
  * Embedded Spawn Point Schema
@@ -72,7 +73,7 @@ const obstacleSchema = new mongoose.Schema(
     },
     label: {
       type: String,
-      default: '',
+      required: [true, 'Obstacle label is required'],
       trim: true,
       maxlength: [100, 'Obstacle label cannot exceed 100 characters'],
     },
@@ -153,11 +154,55 @@ const roomSchema = new mongoose.Schema(
     spawnPoint: {
       type: spawnPointSchema,
       default: () => ({ x: DEFAULT_SPAWN_X, y: DEFAULT_SPAWN_Y }),
+      validate: [
+        {
+          validator: function (sp) {
+            if (!sp) return true;
+            const w = this.width ?? this.dimensions?.width;
+            const h = this.height ?? this.dimensions?.height;
+            if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
+              if (sp.x < 0 || sp.x > w || sp.y < 0 || sp.y > h) return false;
+            }
+            return true;
+          },
+          message: 'Spawn point coordinates must remain inside room boundaries',
+        },
+        {
+          validator: function (sp) {
+            if (!sp || !Array.isArray(this.obstacles)) return true;
+            for (const obs of this.obstacles) {
+              if (isPointInsideObstacle(sp, obs)) return false;
+            }
+            return true;
+          },
+          message: 'Spawn point cannot be inside an obstacle',
+        },
+      ],
     },
     // Embedded physical and acoustic obstacles (walls, desks, partitions)
     obstacles: {
       type: [obstacleSchema],
       default: [],
+      validate: {
+        validator: function (obsList) {
+          if (!Array.isArray(obsList)) return true;
+          const w = this.width ?? this.dimensions?.width;
+          const h = this.height ?? this.dimensions?.height;
+          if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
+            for (let i = 0; i < obsList.length; i++) {
+              const obs = obsList[i];
+              if (obs && Number.isFinite(obs.x) && Number.isFinite(obs.width)) {
+                if (obs.x < 0 || obs.x + obs.width > w) return false;
+              }
+              if (obs && Number.isFinite(obs.y) && Number.isFinite(obs.height)) {
+                if (obs.y < 0 || obs.y + obs.height > h) return false;
+              }
+            }
+          }
+          return true;
+        },
+        message: 'All obstacles must remain completely inside room boundaries',
+      },
     },
     // Backward-compatibility structure for code referencing dimensions object
     dimensions: {
