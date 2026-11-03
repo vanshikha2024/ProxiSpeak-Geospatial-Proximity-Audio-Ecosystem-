@@ -58,7 +58,7 @@ function NearbyPanel({
                 )}
 
                 <span className="nearby-distance">
-                  {user.distance} pixels
+                  {Math.round(user.distance)} pixels
                 </span>
 
                 <span

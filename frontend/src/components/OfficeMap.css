@@ -99,3 +99,96 @@
     outline: 4px solid #22c55e;
     box-shadow: 0 0 20px 8px rgba(34, 197, 94, 0.75);
 }
+
+.office-map-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin: 0 0 12px;
+  color: #cbd5e1;
+  font-size: 12px;
+}
+
+.map-summary-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.map-summary-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.map-summary-dot-you {
+  background: #a5b4fc;
+}
+
+.map-summary-dot-team {
+  background: #6366f1;
+}
+
+.map-summary-dot-nearby {
+  background: #22c55e;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.65);
+}
+
+.avatar-nearby-label {
+  padding: 3px 7px;
+  border: 1px solid rgba(34, 197, 94, 0.5);
+  border-radius: 999px;
+  background: rgba(20, 83, 45, 0.92);
+  color: #bbf7d0;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.map-hint {
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  left: 12px;
+  margin: 0;
+  color: #94a3b8;
+  font-size: 12px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.office-map .nearby-avatar {
+  z-index: 2;
+}
+
+.office-map .self-avatar {
+  z-index: 3;
+}
+
+@media (max-width: 600px) {
+  .office-heading h2 {
+    font-size: 19px;
+  }
+
+  .office-map {
+    height: 280px;
+    background-size: 24px 24px;
+  }
+
+  .office-map-summary {
+    gap: 9px;
+    font-size: 11px;
+  }
+
+  .avatar-circle {
+    width: 38px;
+    height: 38px;
+    font-size: 12px;
+  }
+
+  .avatar-name {
+    max-width: 88px;
+    font-size: 11px;
+  }
+}
