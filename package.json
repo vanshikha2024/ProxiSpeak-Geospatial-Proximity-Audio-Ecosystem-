@@ -1,0 +1,46 @@
+{
+  "name": "proxispeak-backend",
+  "version": "1.0.0",
+  "description": "Geospatial Proximity Audio Ecosystem - Node.js, Express & MongoDB Backend",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node scripts/test-sockets.js && node scripts/test-routes.js",
+    "test:room": "node scripts/test-room-model.js",
+    "test:validation": "node scripts/test-obstacle-validation.js",
+    "test:seed": "node scripts/test-seed.js",
+    "test:layout-api": "node scripts/test-room-layout-api.js",
+    "seed": "node scripts/seedDefaultRoom.js",
+    "seed:room": "node scripts/seedDefaultRoom.js",
+    "test:sockets": "node scripts/test-sockets.js",
+    "test:routes": "node scripts/test-routes.js",
+    "test:week2": "node scripts/test-week2-baseline.js",
+    "test:multi-instance": "node scripts/test-multi-instance.js",
+    "test:cross-instance": "node scripts/test-cross-instance.js"
+  },
+  "keywords": [
+    "proxispeak",
+    "webrtc",
+    "socket.io",
+    "geospatial",
+    "proximity-audio",
+    "mongodb"
+  ],
+  "author": "ProxiSpeak Team",
+  "license": "ISC",
+  "dependencies": {
+    "@socket.io/redis-adapter": "^8.3.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "ioredis": "^6.0.0",
+    "mongoose": "^8.9.5",
+    "socket.io": "^4.8.1",
+    "socket.io-redis": "^5.4.0"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.4"
+  }
+}
