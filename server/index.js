@@ -5,6 +5,8 @@ const { Server } = require("socket.io");
 const mongoose = require("mongoose");
 const connectDB = require("./config/db");
 const User = require("./models/User");
+const Room = require("./models/Room");
+const { validateLayout } = require("./services/roomLayout");
 const positionSaver = require("./services/positionSaver");
 const { parseNearbyParams } = require("./services/proximity");
 const { setupScaling } = require("./services/scaling");
@@ -25,6 +27,48 @@ app.get("/health", (_req, res) => {
 
 // Who is close to a point? Example:
 //   /api/users/nearby?roomId=main-office&x=200&y=150&radius=100
+// Read an office layout. Example: /api/rooms/main-office
+app.get("/api/rooms/:roomId", async (req, res) => {
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({ error: "Database is not connected" });
+  }
+  try {
+    const room = await Room.findOne({ roomId: req.params.roomId }).lean();
+    if (!room) return res.status(404).json({ error: "Office not found" });
+    res.json({
+      roomId: room.roomId,
+      name: room.name,
+      width: room.width,
+      height: room.height,
+      obstacles: room.obstacles,
+    });
+  } catch (error) {
+    console.error("Room read failed:", error.message);
+    res.status(500).json({ error: "Could not read the office" });
+  }
+});
+
+// Save a new layout for an office (creates the office if it is new)
+app.put("/api/rooms/:roomId/layout", express.json({ limit: "100kb" }), async (req, res) => {
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({ error: "Database is not connected" });
+  }
+  const result = validateLayout(req.body);
+  if (result.error) return res.status(400).json({ error: result.error });
+
+  try {
+    const room = await Room.findOneAndUpdate(
+      { roomId: req.params.roomId },
+      { $set: result.value },
+      { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
+    ).lean();
+    res.json({ roomId: room.roomId, width: room.width, height: room.height, obstacles: room.obstacles });
+  } catch (error) {
+    console.error("Room save failed:", error.message);
+    res.status(400).json({ error: error.message });
+  }
+});
+
 app.get("/api/users/nearby", async (req, res) => {
   const params = parseNearbyParams(req.query);
   if (params.error) return res.status(400).json({ error: params.error });

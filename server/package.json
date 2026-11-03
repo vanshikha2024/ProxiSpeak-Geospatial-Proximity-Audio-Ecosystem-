@@ -14,7 +14,9 @@
     "bench:nearby": "node scripts/benchmark-nearby.js",
     "test:store": "node scripts/test-store.js",
     "test:scaling": "node scripts/test-scaling.js",
-    "test:ghosts": "node scripts/test-ghosts.js"
+    "test:ghosts": "node scripts/test-ghosts.js",
+    "test:rooms": "node scripts/test-room-layout.js",
+    "seed:room": "node scripts/seed-room.js"
   },
   "keywords": [],
   "author": "",
