@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Room from '../models/Room.js';
 import User from '../models/User.js';
 import {
@@ -123,12 +124,20 @@ export const createRoom = async (req, res) => {
 
 /**
  * GET /api/rooms/:id
- * Retrieves specific room details
+ * Retrieves specific room details and complete layout (dimensions, spawnPoint, obstacles)
  */
 export const getRoomById = async (req, res) => {
   try {
     const { id } = req.params;
-    const room = await Room.findById(id).lean();
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid room ID format',
+      });
+    }
+
+    const room = await Room.findById(id).select('-__v').lean();
 
     if (!room) {
       return res.status(404).json({
@@ -137,19 +146,43 @@ export const getRoomById = async (req, res) => {
       });
     }
 
-    const activeMembersCount = await User.countDocuments({
-      roomId: room._id,
-      isOnline: true,
-    });
+    let activeMembersCount = 0;
+    try {
+      activeMembersCount = await User.countDocuments({
+        roomId: room._id,
+        isOnline: true,
+      });
+    } catch {
+      activeMembersCount = 0;
+    }
 
     return res.status(200).json({
       success: true,
       data: {
-        ...room,
+        _id: room._id,
+        name: room.name,
+        description: room.description || '',
+        width: room.width,
+        height: room.height,
+        dimensions: room.dimensions || { width: room.width, height: room.height },
+        audioRadius: room.audioRadius,
+        capacity: room.capacity,
+        spawnPoint: room.spawnPoint || { x: 0, y: 0 },
+        obstacles: Array.isArray(room.obstacles) ? room.obstacles : [],
+        isPrivate: Boolean(room.isPrivate),
         activeMembersCount,
+        createdBy: room.createdBy || null,
+        createdAt: room.createdAt,
+        updatedAt: room.updatedAt,
       },
     });
   } catch (error) {
+    if (error.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid room ID format',
+      });
+    }
     return res.status(500).json({
       success: false,
       message: 'Failed to retrieve room',
@@ -165,6 +198,14 @@ export const getRoomById = async (req, res) => {
 export const getRoomMembers = async (req, res) => {
   try {
     const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid room ID format',
+      });
+    }
+
     const room = await Room.findById(id);
 
     if (!room) {

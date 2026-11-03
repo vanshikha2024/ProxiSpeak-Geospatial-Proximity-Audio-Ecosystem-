@@ -11,6 +11,7 @@
     "test:room": "node scripts/test-room-model.js",
     "test:validation": "node scripts/test-obstacle-validation.js",
     "test:seed": "node scripts/test-seed.js",
+    "test:layout-api": "node scripts/test-room-layout-api.js",
     "seed": "node scripts/seedDefaultRoom.js",
     "seed:room": "node scripts/seedDefaultRoom.js",
     "test:sockets": "node scripts/test-sockets.js",
