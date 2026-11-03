@@ -14,6 +14,7 @@ import { useMicrophone } from "./hooks/useMicrophone";
 import { usePeerConnections } from "./hooks/usePeerConnections";
 import { useSocket } from "./hooks/useSocket";
 import { volumeForDistance } from "./audio/volume";
+import { panForOffset } from "./audio/panning";
 import { pickVoicePeers } from "./utils/voicePeers";
 import { AUDIO_RADIUS, MAX_VOICE_PEERS } from "./config";
 
@@ -52,8 +53,17 @@ export default function App() {
   const nearbyIds = voiceIds;
 
   // How loud each nearby person is, from their distance (0 to 1)
-  const volumes = useMemo(
-    () => Object.fromEntries(nearby.map((user) => [user.id, volumeForDistance(user.distance, AUDIO_RADIUS)])),
+  const voices = useMemo(
+    () =>
+      Object.fromEntries(
+        nearby.map((user) => [
+          user.id,
+          {
+            volume: volumeForDistance(user.distance, AUDIO_RADIUS),
+            pan: panForOffset(user.dx, AUDIO_RADIUS),
+          },
+        ])
+      ),
     [nearby]
   );
 
@@ -98,7 +108,7 @@ export default function App() {
 
           <VoiceControls mic={mic} />
           <NearbyPanel nearby={nearby} peerStates={peerStates} />
-          <RemoteAudio streams={remoteStreams} volumes={volumes} />
+          <RemoteAudio streams={remoteStreams} voices={voices} />
         </section>
       )}
     </main>

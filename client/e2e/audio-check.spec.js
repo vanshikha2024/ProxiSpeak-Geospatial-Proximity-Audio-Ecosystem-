@@ -49,6 +49,11 @@ test("two browsers establish a WebRTC audio connection", async ({ browser }) => 
   await expect(a.locator("[data-volume]")).toHaveAttribute("data-volume", "0.40", { timeout: 10_000 });
   await expect(b.locator("[data-volume]")).toHaveAttribute("data-volume", "0.40", { timeout: 10_000 });
 
+  // Stereo: Ben stands to the right of Asha, so Asha hears Ben from the
+  // right (+0.60), and Ben hears Asha from the left (-0.60)
+  await expect(a.locator("[data-pan]")).toHaveAttribute("data-pan", "0.60", { timeout: 10_000 });
+  await expect(b.locator("[data-pan]")).toHaveAttribute("data-pan", "-0.60", { timeout: 10_000 });
+
   await personA.close();
   await personB.close();
 });

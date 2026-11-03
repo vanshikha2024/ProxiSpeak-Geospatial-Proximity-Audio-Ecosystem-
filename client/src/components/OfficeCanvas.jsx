@@ -165,6 +165,7 @@ export default function OfficeCanvas({
           const rounded = nearbyList.map((user) => ({
             ...user,
             distance: Math.round(user.distance / 5) * 5, // steady numbers
+            dx: Math.round(user.dx / 5) * 5,
           }));
           const key = JSON.stringify(rounded);
           if (key !== lastNearbyKey) {

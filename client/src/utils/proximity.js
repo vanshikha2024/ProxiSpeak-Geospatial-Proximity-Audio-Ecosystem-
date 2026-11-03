@@ -30,6 +30,7 @@ export function getNearbyUsers(
       id: user.id,
       name: user.name || "Guest",
       distance: distance(me, user),
+      dx: user.x - me.x, // how far right (+) or left (-) they stand
     }))
     .filter((user) => {
       if (user.distance <= radius) return true;
