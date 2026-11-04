@@ -13,7 +13,7 @@ import { WIDTH, HEIGHT, RADIUS } from "../config";
 // It is called ~60 times per second.
 // ---------------------------------------------------------------
 export function drawOffice(ctx, users, myId, options = {}) {
-  const { audioRadius = 0, nearbyIds = new Set() } = options;
+  const { audioRadius = 0, nearbyIds = new Set(), obstacles = [] } = options;
   ctx.clearRect(0, 0, WIDTH, HEIGHT);
 
   // Office floor
@@ -70,6 +70,24 @@ export function drawOffice(ctx, users, myId, options = {}) {
   ctx.beginPath();
   ctx.roundRect(430, 215, 160, 24, 12);
   ctx.fill();
+
+  // Furniture and walls (they block sound between people)
+  obstacles.forEach((item) => {
+    ctx.fillStyle = "#e2e8f0";
+    ctx.strokeStyle = "#94a3b8";
+    ctx.lineWidth = 1;
+    ctx.fillRect(item.x, item.y, item.width, item.height);
+    ctx.strokeRect(item.x, item.y, item.width, item.height);
+    if (item.label) {
+      ctx.fillStyle = "#475569";
+      ctx.font = "10px Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(item.label, item.x + item.width / 2, item.y + item.height / 2);
+    }
+  });
+  ctx.textAlign = "start";
+  ctx.textBaseline = "alphabetic";
 
   // The audio radius: a soft circle around ME showing who can hear me.
   const me = users.find((user) => user.id === myId);

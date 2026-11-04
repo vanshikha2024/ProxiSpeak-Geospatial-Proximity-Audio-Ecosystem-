@@ -9,6 +9,7 @@ import { drawOffice } from "../canvas/drawOffice";
 import { useKeyboard } from "../hooks/useKeyboard";
 import { EVENTS } from "../network/events";
 import { getNearbyUsers } from "../utils/proximity";
+import { countWallsBetween } from "../audio/blocking";
 import {
   AUDIO_LEAVE_RADIUS,
   AUDIO_RADIUS,
@@ -32,6 +33,7 @@ export default function OfficeCanvas({
   myId,
   spawn,
   onNearbyChange,
+  obstacles = [],
 }) {
   // Refs store values WITHOUT re-rendering React (good for fast changes).
   const canvasRef = useRef(null);
@@ -144,6 +146,7 @@ export default function OfficeCanvas({
 
         // Who is inside my audio radius? (uses the positions we DRAW)
         const others = drawList.filter((user) => user.id !== myId);
+        const positionOf = new Map(others.map((user) => [user.id, user]));
         const nearbyList = getNearbyUsers(
           current,
           others,
@@ -156,6 +159,7 @@ export default function OfficeCanvas({
         drawOffice(ctx, drawList, myId, {
           audioRadius: AUDIO_RADIUS,
           nearbyIds: nearbyIdsRef.current,
+          obstacles,
         });
 
         // Tell the parent (App) who is nearby - at most 4 times per second,
@@ -166,6 +170,7 @@ export default function OfficeCanvas({
             ...user,
             distance: Math.round(user.distance / 5) * 5, // steady numbers
             dx: Math.round(user.dx / 5) * 5,
+            walls: countWallsBetween(current, positionOf.get(user.id), obstacles),
           }));
           const key = JSON.stringify(rounded);
           if (key !== lastNearbyKey) {
@@ -211,7 +216,7 @@ export default function OfficeCanvas({
 
     frameId = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(frameId);
-  }, [connected, socket, usersRef, myId, keysRef, onNearbyChange]);
+  }, [connected, socket, usersRef, myId, keysRef, onNearbyChange, obstacles]);
 
   // ---------- Mouse: click anywhere to walk there ----------
   function handleCanvasClick(event) {

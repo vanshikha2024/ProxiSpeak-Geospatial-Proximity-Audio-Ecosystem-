@@ -15,6 +15,8 @@ import { usePeerConnections } from "./hooks/usePeerConnections";
 import { useSocket } from "./hooks/useSocket";
 import { volumeForDistance } from "./audio/volume";
 import { panForOffset } from "./audio/panning";
+import { wallFactor } from "./audio/blocking";
+import { useRoomObstacles } from "./hooks/useRoomObstacles";
 import { pickVoicePeers } from "./utils/voicePeers";
 import { AUDIO_RADIUS, MAX_VOICE_PEERS } from "./config";
 
@@ -33,6 +35,9 @@ export default function App() {
 
   // My microphone (the next days send this audio to nearby people).
   const mic = useMicrophone();
+
+  // Furniture and walls of this office (empty if there is no layout)
+  const obstacles = useRoomObstacles(profile ? profile.roomId : "");
 
   // Who is inside my audio radius: [{ id, name, distance }]
   const [nearby, setNearby] = useState([]);
@@ -59,7 +64,9 @@ export default function App() {
         nearby.map((user) => [
           user.id,
           {
-            volume: volumeForDistance(user.distance, AUDIO_RADIUS),
+            // quieter with distance, and much quieter behind walls or furniture
+            volume:
+              volumeForDistance(user.distance, AUDIO_RADIUS) * wallFactor(user.walls ?? 0),
             pan: panForOffset(user.dx, AUDIO_RADIUS),
           },
         ])
@@ -98,6 +105,7 @@ export default function App() {
           </div>
 
           <OfficeCanvas
+            obstacles={obstacles}
             socket={socket}
             connected={connected}
             usersRef={usersRef}
