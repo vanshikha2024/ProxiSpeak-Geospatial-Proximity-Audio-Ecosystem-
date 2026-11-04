@@ -1,23 +1,18 @@
-
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
 const positionSchema = new mongoose.Schema(
   {
     userId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       required: true,
       unique: true,
-      index: true
     },
-
     roomId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Room',
+      ref: "Room",
       default: null,
-      index: true
     },
-
     x: {
       type: Number,
       required: true,
@@ -25,10 +20,9 @@ const positionSchema = new mongoose.Schema(
       min: 0,
       validate: {
         validator: Number.isFinite,
-        message: 'X coordinate must be a finite number.'
-      }
+        message: "X coordinate must be finite.",
+      },
     },
-
     y: {
       type: Number,
       required: true,
@@ -36,40 +30,25 @@ const positionSchema = new mongoose.Schema(
       min: 0,
       validate: {
         validator: Number.isFinite,
-        message: 'Y coordinate must be a finite number.'
-      }
+        message: "Y coordinate must be finite.",
+      },
     },
-
     direction: {
       type: String,
-      enum: ['up', 'down', 'left', 'right'],
-      default: 'down'
+      enum: ["up", "down", "left", "right"],
+      default: "down",
     },
-
-    isMoving: {
-      type: Boolean,
-      default: false
-    },
-
-    lastUpdated: {
-      type: Date,
-      default: Date.now
-    }
+    isMoving: { type: Boolean, default: false },
+    lastUpdated: { type: Date, default: Date.now },
   },
-  {
-    timestamps: true,
-    versionKey: false
-  }
+  { timestamps: true, versionKey: false },
 );
 
-// Efficient room-based position queries
 positionSchema.index({ roomId: 1, updatedAt: -1 });
-
-// Automatically refresh lastUpdated when the document changes
-positionSchema.pre('save', function () {
+positionSchema.pre("save", function updateLastUpdated() {
   this.lastUpdated = new Date();
 });
-
-const Position = mongoose.model('Position', positionSchema);
-
-export default Position;
+positionSchema.pre("findOneAndUpdate", function updatePositionTimestamp() {
+  this.set({ lastUpdated: new Date() });
+});
+export default mongoose.model("Position", positionSchema);
