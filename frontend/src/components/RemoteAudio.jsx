@@ -44,7 +44,13 @@ function RemoteAudioPlayer({ socketId, stream, distance, audioRadius }) {
       audioRef.current.volume = volume;
     }
   }, [volume]);
-
+  
+  console.log("[RemoteAudio]", {
+    socketId,
+    distance,
+    audioRadius: radius,
+    volume,
+    });
   return (
     <audio
       ref={audioRef}
