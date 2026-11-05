@@ -326,12 +326,16 @@ async function runWeek2BaselineTests() {
       // ─── 3a: Create rooms with DIFFERENT configured audioRadius values ───
       const roomSmall = await Room.create({
         name: `W2TestRoom_Small_${runId}`,
+        width: 1920,
+        height: 1080,
         audioRadius: 50,
       });
       createdRoomIds.push(roomSmall._id);
 
       const roomLarge = await Room.create({
         name: `W2TestRoom_Large_${runId}`,
+        width: 1920,
+        height: 1080,
         audioRadius: 300,
       });
       createdRoomIds.push(roomLarge._id);
@@ -533,6 +537,8 @@ async function runWeek2BaselineTests() {
       // Outside: [500, 601] -> distance = 101
       const boundaryRoom = await Room.create({
         name: `W2TestRoom_Boundary_${runId}`,
+        width: 1920,
+        height: 1080,
         audioRadius: 100,
       });
       createdRoomIds.push(boundaryRoom._id);

@@ -457,10 +457,10 @@ async function runObstacleValidationTests() {
   console.log('------------------------------------------------------\n');
 
   if (failCount > 0) {
-    process.exit(1);
+    process.exitCode = 1;
   } else {
     console.log('All layout and obstacle validation tests passed successfully!\n');
-    process.exit(0);
+    process.exitCode = 0;
   }
 }
 
