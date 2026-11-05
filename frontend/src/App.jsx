@@ -99,141 +99,126 @@ function App() {
     }
   };
 
-  return (
-    <main className="app">
-      <section className="welcome-card">
-        <div className="logo">P</div>
-
-        <h1>ProxiSpeak</h1>
-
-        <p className="subtitle">
-          Your virtual office. Conversations happen naturally.
-        </p>
-
-        <div className="connection-status">
-          <span
-            className={`status-dot ${isConnected ? "online" : "offline"}`}
-          />
-          {isConnected ? "Server connected" : "Connecting to server..."}
-        </div>
-
-        <form onSubmit={handleJoin}>
-          <label htmlFor="name">Your name</label>
-          <input
-            id="name"
-            type="text"
-            placeholder="Enter your name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            required
-          />
-
-          <label htmlFor="roomId">Office room</label>
-          <select
-            id="roomId"
-            value={roomId}
-            onChange={(event) => setRoomId(event.target.value)}
-            required
-          >
-            <option value="">Select a room</option>
-            {rooms.map((room) => (
-              <option key={room._id} value={room._id}>
-                {room.name}
-              </option>
-            ))}
-          </select>
-
-          {roomsError && <p>{roomsError}</p>}
-
-          <button type="submit" disabled={!isConnected}>
-            Enter Office
-          </button>
-        </form>
-
-        {roomError && <p className="error-message">{roomError}</p>}
-
-        {userId && (
-          <div className="success-message">
-            <p>Room joined successfully! Your ID: {userId}
+    return (
+    <main className={`app ${joined ? "office-view" : "join-view"}`}>
+      {!joined ? (
+        <section className="welcome-card">
+          <div className="logo">P</div>
+          <h1>ProxiSpeak</h1>
+          <p className="subtitle">
+            Your virtual office. Conversations happen naturally.
           </p>
-          <h3>Other people in this office ({users.length})</h3>
 
-          {users.length === 0? (
-            <p>No other users yet, Open another tab to test!
-            </p>):(
-              <ul className="user-list">
-                {users.map((user)=>(
-                  <li key={user.id} className="user-item">
-                    <span className="user-dot"></span>
-                    <span> {user.name || "Guest"}</span>
-                  </li>
-                ))
-                }
-              </ul>
-          )}
+          <div className="connection-status">
+            <span
+              className={`status-dot ${isConnected ? "online" : "offline"}`}
+            />
+            {isConnected ? "Server connected" : "Connecting to server..."}
           </div>
-        )}
 
-        <p className="footer-text">
-          Connect with your team, wherever they are.
-        </p>
-      </section>
-      
-      <div className="voice-controls">
-        <button
-          type="button"
-          onClick={handleStartVoice}
-          disabled={voiceStarted}
-        >
-          {voiceStarted ? "Voice Started" : "Start Voice"}
-        </button>
+          <form onSubmit={handleJoin}>
+            <label htmlFor="name">Your name</label>
+            <input
+              id="name"
+              type="text"
+              placeholder="Enter your name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              required
+            />
 
-        {voiceStarted && (
-          <>
-            <button type="button" onClick={toggleMute}>
-              {isMuted ? "Unmute" : "Mute"}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                leaveVoice();
-                setVoiceStarted(false);
-                setVoiceError("");
-              }}
+            <label htmlFor="roomId">Office room</label>
+            <select
+              id="roomId"
+              value={roomId}
+              onChange={(event) => setRoomId(event.target.value)}
+              required
             >
-              Leave Voice
+              <option value="">Select a room</option>
+              {rooms.map((room) => (
+                <option key={room._id} value={room._id}>
+                  {room.name}
+                </option>
+              ))}
+            </select>
+
+            {roomsError && <p className="error-message">{roomsError}</p>}
+
+            <button type="submit" disabled={!isConnected}>
+              Enter Office
             </button>
-          </>
-        )}
+          </form>
 
-        {voiceError && (
-          <p role="alert" className="voice-error">
-            {voiceError}
+          {roomError && <p className="error-message">{roomError}</p>}
+
+          <p className="footer-text">
+            Connect with your team, wherever they are.
           </p>
-        )}
-      </div>
+        </section>
+      ) : (
+        <>
+          <header className="office-header">
+            <div>
+              <h1>ProxiSpeak</h1>
+              <p>Virtual office</p>
+            </div>
+            <span className="connection-status">
+              <span
+                className={`status-dot ${isConnected ? "online" : "offline"}`}
+              />
+              {isConnected ? "Connected" : "Connecting..."}
+            </span>
+          </header>
 
+          <OfficeMap
+            users={interpolatedUsers}
+            currentUserId={userId}
+            localPosition={localPosition}
+          />
 
+          <div className="voice-controls">
+            {!voiceStarted ? (
+              <button type="button" onClick={handleStartVoice}>
+                Start Voice
+              </button>
+            ) : (
+              <>
+                <button type="button" onClick={toggleMute}>
+                  {isMuted ? "Unmute" : "Mute"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    leaveVoice();
+                    setVoiceStarted(false);
+                    setVoiceError("");
+                  }}
+                >
+                  Leave Voice
+                </button>
+              </>
+            )}
 
-      {joined && (
-        <OfficeMap 
-        users={interpolatedUsers} 
-        currentUserId={userId} 
-        localPosition={localPosition}
-        />
+            {voiceError && (
+              <p role="alert" className="voice-error">
+                {voiceError}
+              </p>
+            )}
+          </div>
+
+          <NearbyPanel
+            nearbyUsers={nearbyUsers}
+            audioRadius={audioRadius}
+            connectionStatuses={connectionStatuses}
+            speakingUsers={speakingUsers}
+          />
+
+          <RemoteAudio
+            users={remoteAudioUsers}
+            audioRadius={audioRadius}
+          />
+        </>
       )}
-
-      {joined && (<NearbyPanel nearbyUsers={nearbyUsers} audioRadius={audioRadius} connectionStatuses={connectionStatuses} speakingUsers={speakingUsers}/>
-      )}
-
-      {joined && (
-        <RemoteAudio
-          users={remoteAudioUsers}
-          audioRadius={audioRadius}
-        />
-      )}
-
     </main>
   );
 }
