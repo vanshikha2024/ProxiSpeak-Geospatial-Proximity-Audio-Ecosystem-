@@ -60,8 +60,18 @@ const runTests = async () => {
   let room2Id = new mongoose.Types.ObjectId().toString();
 
   if (isMongoConnected) {
-    const r1 = await Room.create({ name: 'TestRoomAlpha', audioRadius: 100 });
-    const r2 = await Room.create({ name: 'TestRoomBeta', audioRadius: 100 });
+    const r1 = await Room.create({
+      name: 'TestRoomAlpha',
+      width: 2000,
+      height: 1200,
+      audioRadius: 100,
+    });
+    const r2 = await Room.create({
+      name: 'TestRoomBeta',
+      width: 2000,
+      height: 1200,
+      audioRadius: 100,
+    });
     room1Id = r1._id.toString();
     room2Id = r2._id.toString();
   }
