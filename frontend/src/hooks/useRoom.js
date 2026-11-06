@@ -152,5 +152,26 @@ export function useRoom() {
     []
   );
 
-  return { userId, users, roomError, joinRoom };
+    /**
+   * Leave the current office without disconnecting the Socket.IO connection.
+   * The server removes this avatar from the room and notifies its members.
+   */
+  const leaveRoom = useCallback(() => {
+    if (!socket.connected) {
+      setUsers([]);
+      setUserId(null);
+      setRoomError("");
+      return;
+    }
+
+    // Tell the server to remove this avatar from the current room.
+    socket.emit("avatar:leave");
+
+    // Clear local room state and return to the join screen.
+    setUsers([]);
+    setUserId(null);
+    setRoomError("");
+  }, []);
+
+  return { userId, users, roomError, joinRoom, leaveRoom };
 }

@@ -20,7 +20,7 @@ function App() {
   const [roomId, setRoomId] = useState("");
   const { position: localPosition} = useLocalAvatar();
   const { isConnected } = useSocket();
-  const { userId, users, roomError, joinRoom } = useRoom();
+  const { userId, users, roomError, joinRoom, leaveRoom } = useRoom();
   const joined = Boolean(userId);
   const audioRadius = useAudioRadius(joined ? roomId : "");
   const nearbyUsers = useNearbyUsers(localPosition, users, userId, audioRadius);
@@ -169,6 +169,31 @@ function App() {
               {isConnected ? "Connected" : "Connecting..."}
             </span>
           </header>
+
+          <div className="office-actions">
+            <p className="current-room-label">
+              You are currently in{" "}
+              <strong>
+                {rooms.find((room) => room._id === roomId)?.name || "your office"}
+              </strong>
+            </p>
+
+            <button
+              type="button"
+              className="change-room-button"
+              onClick={() => {
+                // Stop voice before leaving the current room.
+                leaveVoice();
+                setVoiceStarted(false);
+                setVoiceError("");
+
+                // Remove the avatar and return to room selection.
+                leaveRoom();
+              }}
+            >
+              Change Room
+            </button>
+          </div>
 
           <OfficeMap
             users={interpolatedUsers}

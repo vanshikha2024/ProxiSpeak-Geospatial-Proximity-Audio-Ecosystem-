@@ -391,6 +391,72 @@ export const registerSignalingHandlers = (io) => {
       }
     });
 
+        /**
+     * Client -> Server: avatar:leave
+     * Removes the current avatar from its room without disconnecting the socket.
+     */
+    socket.on('avatar:leave', async () => {
+      const avatar = activeAvatars.get(socket.id);
+
+      // Handle duplicate leave requests safely.
+      if (!avatar) {
+        socket.emit('avatar:leave:success', { left: false });
+        return;
+      }
+
+      const roomId = String(avatar.roomId);
+      const throttle = persistenceState.get(socket.id);
+
+      // Cancel any pending coordinate persistence.
+      if (throttle?.timeoutId) {
+        clearTimeout(throttle.timeoutId);
+      }
+
+      persistenceState.delete(socket.id);
+      activeAvatars.delete(socket.id);
+
+      // Mark the user offline in MongoDB.
+      try {
+        if (
+          mongoose.connection.readyState === 1 &&
+          mongoose.isValidObjectId(avatar.avatarId)
+        ) {
+          await User.findByIdAndUpdate(avatar.avatarId, {
+            'location.coordinates': [avatar.x, avatar.y],
+            isOnline: false,
+            socketId: null,
+          });
+        }
+      } catch (dbError) {
+        console.error(
+          `[Avatar] MongoDB error while leaving room for ${avatar.avatarId}:`,
+          dbError.message
+        );
+      }
+
+      // Leave the Socket.IO room, but keep the connection active.
+      await socket.leave(roomId);
+
+      socket.data.avatar = null;
+
+      // Notify only the remaining members of the previous room.
+      socket.to(roomId).emit('avatar:left', {
+        avatarId: avatar.avatarId,
+        socketId: socket.id,
+        username: avatar.username,
+        roomId,
+      });
+
+      socket.emit('avatar:leave:success', {
+        left: true,
+        roomId,
+      });
+
+      console.log(
+        `[Avatar] Avatar left room: "${avatar.username}" (${avatar.avatarId}) from "${roomId}"`
+      );
+    });
+
     /**
      * Client -> Server: signal:offer (Secure WebRTC Signaling Relay)
      * Payload: { toSocketId: string, offer: any }
