@@ -5,6 +5,7 @@ import {
   getRoomById,
   getRoomMembers,
 } from '../controllers/roomController.js';
+import validateObjectId from '../middleware/validateObjectId.js';
 
 const router = express.Router();
 
@@ -15,9 +16,9 @@ router.get('/', getRooms);
 router.post('/', createRoom);
 
 // GET /api/rooms/:id - Get specific room details
-router.get('/:id', getRoomById);
+router.get('/:id', validateObjectId('id'), getRoomById);
 
 // GET /api/rooms/:id/members - Get active avatars in room
-router.get('/:id/members', getRoomMembers);
+router.get('/:id/members', validateObjectId('id'), getRoomMembers);
 
 export default router;

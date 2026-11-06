@@ -4,6 +4,7 @@ import {
   getUsers,
   getUserById,
 } from '../controllers/userController.js';
+import validateObjectId from '../middleware/validateObjectId.js';
 
 const router = express.Router();
 
@@ -14,6 +15,6 @@ router.get('/nearby', getNearbyUsers);
 router.get('/', getUsers);
 
 // GET /api/users/:id - Get user by ID
-router.get('/:id', getUserById);
+router.get('/:id', validateObjectId('id'), getUserById);
 
 export default router;
