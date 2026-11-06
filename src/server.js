@@ -8,6 +8,7 @@ import { initAvatarRedis, closeAvatarRedis } from './redis/avatarState.js';
 
 // Load environment variables
 dotenv.config();
+console.log("[ENV CHECK] REDIS_URL loaded:", Boolean(process.env.REDIS_URL));
 
 const PORT = process.env.PORT || 5000;
 

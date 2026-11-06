@@ -72,21 +72,42 @@ export const deleteAvatarData = async (socketId, roomId) => {
   if (!client) {
     const data = fallbackMap.get(socketId);
     const rId = roomId || data?.roomId;
+
     fallbackMap.delete(socketId);
+
     if (rId) {
       const set = fallbackRoomSets.get(rId);
       if (set) set.delete(socketId);
     }
+
     return;
   }
+
   const key = `avatar:${socketId}`;
-  let rId = roomId;
-  if (!rId) {
-    rId = await client.hget(key, 'roomId');
-  }
-  await client.del(key);
-  if (rId) {
-    await client.srem(`room:${rId}:avatars`, socketId);
+
+  try {
+    const rId = roomId || await client.hget(key, "roomId");
+
+    if (!rId) {
+      await client.del(key);
+      return;
+    }
+
+    const transaction = client.multi();
+
+    transaction.del(key);
+    transaction.srem(`room:${rId}:avatars`, socketId);
+
+    await transaction.exec();
+
+    console.log(
+      `[AvatarRedis] Cleaned socket ${socketId} from room ${rId}`
+    );
+  } catch (error) {
+    console.error(
+      `[AvatarRedis] Cleanup failed for socket ${socketId}:`,
+      error.message
+    );
   }
 };
 
@@ -112,6 +133,50 @@ export const getRoomAvatars = async (roomId) => {
       return parseAvatarFields(data);
     })
     .filter(Boolean);
+};
+
+export const pruneRoomAvatars = async (roomId, activeSocketIds) => {
+  const activeIds = new Set(activeSocketIds);
+
+  if (!client) {
+    const roomSet = fallbackRoomSets.get(roomId);
+
+    if (!roomSet) return;
+
+    for (const socketId of roomSet) {
+      if (!activeIds.has(socketId)) {
+        roomSet.delete(socketId);
+        fallbackMap.delete(socketId);
+      }
+    }
+
+    return;
+  }
+
+  const roomKey = `room:${roomId}:avatars`;
+  const storedIds = await client.smembers(roomKey);
+
+  const staleIds = storedIds.filter(
+    (socketId) => !activeIds.has(socketId)
+  );
+
+  if (staleIds.length === 0) {
+    console.log(`[AvatarRedis] No stale members in room ${roomId}`);
+    return;
+  }
+
+  const transaction = client.multi();
+
+  for (const socketId of staleIds) {
+    transaction.del(`avatar:${socketId}`);
+    transaction.srem(roomKey, socketId);
+  }
+
+  await transaction.exec();
+
+  console.log(
+    `[AvatarRedis] Removed ${staleIds.length} stale members from room ${roomId}`
+  );
 };
 
 export const closeAvatarRedis = async () => {

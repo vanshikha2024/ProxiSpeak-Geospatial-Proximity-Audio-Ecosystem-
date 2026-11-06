@@ -125,7 +125,7 @@ export async function seedDefaultRoom(options = {}) {
     console.log(`[Seed] Default office ready in database: "${room.name}" (ID: ${room._id})`);
     return room;
   } catch (error) {
-    console.error(`[Seed Error] ${error.message}`);
+    console.error('[Seed Error Details]', error.stack);
     throw error;
   } finally {
     if (shouldDisconnect && mongoose.connection.readyState !== 0) {

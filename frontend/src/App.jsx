@@ -18,9 +18,14 @@ function App() {
   const [rooms, setRooms] = useState([]);
   const [roomsError, setRoomsError] = useState("");
   const [roomId, setRoomId] = useState("");
-  const { position: localPosition} = useLocalAvatar();
+  const selectedRoom = rooms.find((room) => room._id === roomId);
+  const obstacles = selectedRoom?.obstacles ?? [];
+  const { position: localPosition } = useLocalAvatar(
+    selectedRoom?.spawnPoint ?? { x: 500, y: 250 },
+    obstacles
+  );
   const { isConnected } = useSocket();
-  const { userId, users, roomError, joinRoom } = useRoom();
+  const { userId, users, roomError, joinRoom, leaveRoom } = useRoom();
   const joined = Boolean(userId);
   const audioRadius = useAudioRadius(joined ? roomId : "");
   const nearbyUsers = useNearbyUsers(localPosition, users, userId, audioRadius);
@@ -44,6 +49,10 @@ function App() {
     return {
       ...remote,
       distance,
+      x: user.x,
+      y: user.y,
+      localX: localPosition.x,
+      localY: localPosition.y,
     };
   }).filter(Boolean);
 
@@ -169,6 +178,19 @@ function App() {
           </span>
         </header>
 
+        <button
+          type="button"
+          onClick={() => {
+            leaveVoice();
+            setVoiceStarted(false);
+            setVoiceError("");
+            leaveRoom();
+            setJoined(false);
+          }}
+        >
+          Change Room
+        </button>
+
         <div className="office-legend">
           <span><i className="legend-dot you-dot" /> You</span>
           <span><i className="legend-dot teammates-dot" /> Teammates</span>
@@ -193,6 +215,8 @@ function App() {
           users={interpolatedUsers}
           currentUserId={userId}
           localPosition={localPosition}
+          audioRadius={audioRadius}
+          obstacles={obstacles}
         />
 
         <div className="voice-controls">
@@ -236,6 +260,7 @@ function App() {
         <RemoteAudio
           users={remoteAudioUsers}
           audioRadius={audioRadius}
+          obstacles={obstacles}
         />
       </>
     )}

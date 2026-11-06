@@ -90,6 +90,15 @@ export function useWebRTC(localSocketId, users = []) {
       audio: true,
       video: false,
     });
+    console.log("[Local Microphone]", {
+      active: stream.active,
+      tracks: stream.getAudioTracks().map((track) => ({
+        enabled: track.enabled,
+        muted: track.muted,
+        readyState: track.readyState,
+        label: track.label,
+      })),
+    });
 
     localStreamRef.current = stream;
     setLocalStream(stream);
@@ -479,7 +488,7 @@ setSpeakingUsers((current) => {
   const startAudio = useCallback(async () => {
     if (audioStartedRef.current) return;
 
-    // Request microphone permission from the button action.
+    // Request microphone permission.
     await getLocalStream();
 
     audioStartedRef.current = true;

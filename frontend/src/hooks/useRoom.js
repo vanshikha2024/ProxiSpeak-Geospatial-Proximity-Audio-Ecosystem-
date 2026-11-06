@@ -151,6 +151,19 @@ export function useRoom() {
     },
     []
   );
+  const leaveRoom = useCallback(() => {
+    if (!socket.connected) {
+      setUsers([]);
+      setUserId(null);
+      return;
+    }
 
-  return { userId, users, roomError, joinRoom };
+    socket.emit("avatar:leave");
+
+    setUsers([]);
+    setUserId(null);
+    setRoomError("");
+  }, []);
+
+  return { userId, users, roomError, joinRoom, leaveRoom };
 }

@@ -7,6 +7,7 @@ function OfficeMap({
   currentUserId,
   localPosition,
   audioRadius = 0,
+  obstacles = [],
 }) {
   return (
     <section className="office-section">
@@ -16,6 +17,7 @@ function OfficeMap({
           currentUserId={currentUserId}
           localPosition={localPosition}
           audioRadius={audioRadius}
+          obstacles={obstacles}
         />
       </div>
     </section>

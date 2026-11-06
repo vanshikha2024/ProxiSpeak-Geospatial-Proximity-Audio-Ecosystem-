@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
 import { drawOffice } from "../canvas/drawOffice";
 
-const MAP_WIDTH = 2000;
-const MAP_HEIGHT = 1200;
+const MAP_WIDTH = 1920;
+const MAP_HEIGHT = 1080;
 const CANVAS_WIDTH = 720;
 const CANVAS_HEIGHT = 420;
 const SCALE_X = CANVAS_WIDTH / MAP_WIDTH;
@@ -13,6 +13,7 @@ function OfficeCanvas({
   currentUserId,
   localPosition,
   audioRadius = 0,
+  obstacles = [],
 }) {
   const canvasRef = useRef(null);
 
@@ -39,12 +40,20 @@ function OfficeCanvas({
     const nearbyIds = new Set(
       users.filter((user) => user.isNearby).map((user) => user.id)
     );
+    const canvasObstacles = obstacles.map((item) => ({
+      ...item,
+      x: item.x * SCALE_X,
+      y: item.y * SCALE_Y,
+      width: item.width * SCALE_X,
+      height: item.height * SCALE_Y,
+    }));
 
     drawOffice(ctx, canvasUsers, currentUserId, {
       audioRadius: audioRadius * SCALE_X,
       nearbyIds,
+      obstacles: canvasObstacles,
     });
-  }, [users, currentUserId, localPosition, audioRadius]);
+  }, [users, currentUserId, localPosition, audioRadius, obstacles]);
 
   return (
     <canvas

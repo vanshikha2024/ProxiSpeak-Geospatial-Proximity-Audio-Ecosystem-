@@ -3,7 +3,7 @@ import User from '../models/User.js';
 import Room from '../models/Room.js';
 import { PERSISTENCE_THROTTLE_MS, DEFAULT_AUDIO_RADIUS } from '../config/constants.js';
 import { isWithinAudioRadius } from '../utils/proximity.js';
-import { getAvatarData, setAvatarData, deleteAvatarData, getRoomAvatars } from '../redis/avatarState.js';
+import { getAvatarData, setAvatarData, deleteAvatarData, getRoomAvatars, pruneRoomAvatars } from '../redis/avatarState.js';
 /**
  * In-memory cache for room audio radii:
  * Map<roomId, number>
@@ -324,7 +324,57 @@ export const registerSignalingHandlers = (io) => {
           isOnline: true,
         };
 
-        // 4. Join Socket.io room channel
+        // 4. Clean up previous room if this socket is switching rooms
+        const previousAvatar =
+          activeAvatars.get(socket.id) ||
+          (await getAvatarData(socket.id));
+
+        if (
+          previousAvatar &&
+          String(previousAvatar.roomId) !== String(effectiveRoomId)
+        ) {
+          const previousRoomId = previousAvatar.roomId;
+
+          // Clear pending MongoDB persistence timer
+          const previousThrottle = persistenceState.get(socket.id);
+
+          if (previousThrottle?.timeoutId) {
+            clearTimeout(previousThrottle.timeoutId);
+          }
+
+          persistenceState.delete(socket.id);
+          activeAvatars.delete(socket.id);
+
+          // Remove avatar from previous room's Redis state
+          await deleteAvatarData(socket.id, previousRoomId);
+
+          // Leave previous Socket.IO room
+          await socket.leave(previousRoomId);
+
+          // Mark previous avatar record offline
+          if (
+            mongoose.connection.readyState === 1 &&
+            mongoose.isValidObjectId(previousAvatar.avatarId)
+          ) {
+            await User.findByIdAndUpdate(previousAvatar.avatarId, {
+              isOnline: false,
+              socketId: null,
+              'location.coordinates': [previousAvatar.x, previousAvatar.y],
+            });
+          }
+
+          // Notify remaining members of the previous room
+          io.to(previousRoomId).emit('avatar:left', {
+            avatarId: previousAvatar.avatarId,
+            socketId: socket.id,
+            username: previousAvatar.username,
+            roomId: previousRoomId,
+          });
+
+          console.log(`[Room] Socket ${socket.id} switched from ${previousRoomId} to ${effectiveRoomId}`);
+        }
+
+        // Join the new room
         socket.join(effectiveRoomId);
 
         // 5. Update in-memory registry
@@ -342,6 +392,20 @@ export const registerSignalingHandlers = (io) => {
 
         // 6. Confirm joining to the client
         socket.emit('avatar:joined', avatarData);
+
+        try {
+          const connectedSockets = await io
+            .in(effectiveRoomId)
+            .fetchSockets();
+
+          const activeSocketIds = connectedSockets.map(
+            (connectedSocket) => connectedSocket.id
+          );
+
+          await pruneRoomAvatars(effectiveRoomId, activeSocketIds);
+          } catch (error) {
+            console.error("[Room Cleanup] Failed:", error.message);
+          }
 
         // 7. Send room-scoped initial avatar list (ONLY avatars in the same room)
         const roomAvatars = await getRoomAvatars(effectiveRoomId);
@@ -402,6 +466,67 @@ export const registerSignalingHandlers = (io) => {
       } catch (err) {
         console.error(`[Avatar] Unexpected error handling avatar:move:`, err.message);
         socket.emit('error', { message: 'Internal server error while moving' });
+      }
+    });
+
+    // Client -> Server: avatar:leave
+    socket.on('avatar:leave', async () => {
+      try {
+        const avatar =
+          activeAvatars.get(socket.id) ||
+          (await getAvatarData(socket.id));
+
+        if (!avatar) {
+          socket.emit('avatar:leave:success');
+          return;
+        }
+
+        // Clear pending position persistence
+        const throttle = persistenceState.get(socket.id);
+
+        if (throttle?.timeoutId) {
+          clearTimeout(throttle.timeoutId);
+        }
+
+        persistenceState.delete(socket.id);
+        activeAvatars.delete(socket.id);
+
+        // Remove avatar from Redis
+        await deleteAvatarData(socket.id, avatar.roomId);
+
+        // Leave the current Socket.IO room
+        await socket.leave(avatar.roomId);
+
+        // Mark the user offline in MongoDB
+        if (
+          mongoose.connection.readyState === 1 &&
+          mongoose.isValidObjectId(avatar.avatarId)
+        ) {
+          await User.findByIdAndUpdate(avatar.avatarId, {
+            'location.coordinates': [avatar.x, avatar.y],
+            isOnline: false,
+            socketId: null,
+          });
+        }
+
+        // Notify remaining users in the room
+        io.to(avatar.roomId).emit('avatar:left', {
+          avatarId: avatar.avatarId,
+          socketId: socket.id,
+          username: avatar.username,
+          roomId: avatar.roomId,
+        });
+
+        socket.data.avatar = null;
+
+        console.log(`[Avatar] User left room: ${avatar.username}`);
+
+        socket.emit('avatar:leave:success');
+      } catch (error) {
+        console.error('[Avatar] Failed to leave room:', error.message);
+        socket.emit('error', {
+          message: 'Unable to leave the office.',
+        });
       }
     });
 

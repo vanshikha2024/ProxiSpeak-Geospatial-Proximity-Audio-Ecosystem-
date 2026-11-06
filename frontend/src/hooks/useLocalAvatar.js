@@ -1,19 +1,57 @@
+
 import { useCallback, useEffect, useState } from "react";
 
-const INITIAL_POSITION = { x: 500, y: 250 };
 const STEP = 15;
-const MAP_WIDTH = 2000;
-const MAP_HEIGHT = 1200;
+const MAP_WIDTH = 1920;
+const MAP_HEIGHT = 1080;
 
-export function useLocalAvatar() {
-  const [position, setPosition] = useState(INITIAL_POSITION);
+export function useLocalAvatar(
+  initialPosition = { x: 500, y: 250 },
+  obstacles = []
+) {
+  const [position, setPosition] = useState(initialPosition);
+
+  useEffect(() => {
+    if (
+      Number.isFinite(initialPosition?.x) &&
+      Number.isFinite(initialPosition?.y)
+    ) {
+      setPosition({
+        x: initialPosition.x,
+        y: initialPosition.y,
+      });
+    }
+  }, [initialPosition?.x, initialPosition?.y]);
 
   const move = useCallback((dx, dy) => {
-    setPosition((current) => ({
-      x: Math.max(0, Math.min(MAP_WIDTH, current.x + dx)),
-      y: Math.max(0, Math.min(MAP_HEIGHT, current.y + dy)),
-    }));
-  }, []);
+    setPosition((current) => {
+      const AVATAR_MARGIN_X = 54;
+      const AVATAR_MARGIN_Y = 75;
+
+      const next = {
+        x: Math.max(
+          AVATAR_MARGIN_X,
+          Math.min(MAP_WIDTH - AVATAR_MARGIN_X, current.x + dx)
+        ),
+        y: Math.max(
+          AVATAR_MARGIN_Y,
+          Math.min(MAP_HEIGHT - AVATAR_MARGIN_Y, current.y + dy)
+        ),
+      };
+      const collision = obstacles.some((obstacle) => {
+        if (obstacle.blocksMovement === false) return false;
+
+        return (
+          next.x >= obstacle.x &&
+          next.x <= obstacle.x + obstacle.width &&
+          next.y >= obstacle.y &&
+          next.y <= obstacle.y + obstacle.height
+        );
+      });
+
+      return collision ? current : next;
+    });
+  }, [obstacles]);
 
   useEffect(() => {
     function handleKeyDown(event) {
@@ -35,6 +73,7 @@ export function useLocalAvatar() {
       if (!direction) return;
 
       const target = event.target;
+
       if (
         target instanceof HTMLElement &&
         (target.isContentEditable ||
@@ -44,7 +83,6 @@ export function useLocalAvatar() {
       }
 
       event.preventDefault();
-      console.log("Movement key pressed:", key);
       move(direction[0], direction[1]);
     }
 

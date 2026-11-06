@@ -119,7 +119,7 @@ const roomSchema = new mongoose.Schema(
       type: Number,
       required: [true, 'Room width is required'],
       default: function () {
-        return this.dimensions?.width;
+        return this?.dimensions?.width;
       },
       validate: {
         validator: (v) => typeof v === 'number' && Number.isFinite(v) && v > 0,
@@ -130,7 +130,7 @@ const roomSchema = new mongoose.Schema(
       type: Number,
       required: [true, 'Room height is required'],
       default: function () {
-        return this.dimensions?.height;
+        return this?.dimensions?.height;
       },
       validate: {
         validator: (v) => typeof v === 'number' && Number.isFinite(v) && v > 0,
@@ -208,15 +208,9 @@ const roomSchema = new mongoose.Schema(
     dimensions: {
       width: {
         type: Number,
-        default: function () {
-          return this.width;
-        },
       },
       height: {
         type: Number,
-        default: function () {
-          return this.height;
-        },
       },
     },
     isPrivate: {
