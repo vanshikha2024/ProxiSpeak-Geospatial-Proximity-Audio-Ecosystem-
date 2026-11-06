@@ -14,19 +14,20 @@
 .office-heading h2 {
   margin: 0;
   font-size: 22px;
+  color: #172033;
 }
 
 .office-heading p {
   margin: 6px 0 0;
-  color: #b7c2d3;
+  color: #64748b;
   font-size: 13px;
 }
 
 .people-count {
   padding: 7px 10px;
-  border: 1px solid #46546a;
+  border: 1px solid #dbe3ef;
   border-radius: 20px;
-  color: #dbeafe;
+  color: #334155;
   font-size: 12px;
   white-space: nowrap;
 }
@@ -34,70 +35,18 @@
 .office-map {
   position: relative;
   width: 100%;
-  height: 340px;
+  height: auto;
+  aspect-ratio: 12 / 7;
   overflow: hidden;
-  border: 1px solid #46546a;
+  border: 1px solid #dbe3ef;
   border-radius: 14px;
-  background-color: #172538;
-  background-image:
-    linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px);
-  background-size: 30px 30px;
+  background: #f8fafc;
 }
 
-.office-avatar {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  transform: translate(-50%, -50%);
-  transition: left 100ms linear, top 100ms linear;
-}
-
-.self-avatar {
-  left: 50%;
-  top: 65%;
-}
-
-.avatar-circle {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border: 2px solid #a5b4fc;
-  border-radius: 50%;
-  background: #6366f1;
-  color: white;
-  font-size: 14px;
-  font-weight: bold;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
-}
-
-.avatar-name {
-  max-width: 110px;
-  overflow: hidden;
-  padding: 4px 8px;
-  border-radius: 6px;
-  background: #0f172a;
-  color: #f8fafc;
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.map-empty {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  color: #b7c2d3;
-  font-size: 14px;
-}
-
-.office-map .nearby-avatar .avatar-circle {
-    outline: 4px solid #22c55e;
-    box-shadow: 0 0 20px 8px rgba(34, 197, 94, 0.75);
+.office-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .office-map-summary {
@@ -106,7 +55,7 @@
   align-items: center;
   gap: 14px;
   margin: 0 0 12px;
-  color: #cbd5e1;
+  color: #64748b;
   font-size: 12px;
 }
 
@@ -123,11 +72,11 @@
 }
 
 .map-summary-dot-you {
-  background: #a5b4fc;
+  background: #6366f1;
 }
 
 .map-summary-dot-team {
-  background: #6366f1;
+  background: #64748b;
 }
 
 .map-summary-dot-nearby {
@@ -135,60 +84,13 @@
   box-shadow: 0 0 8px rgba(34, 197, 94, 0.65);
 }
 
-.avatar-nearby-label {
-  padding: 3px 7px;
-  border: 1px solid rgba(34, 197, 94, 0.5);
-  border-radius: 999px;
-  background: rgba(20, 83, 45, 0.92);
-  color: #bbf7d0;
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 1.2;
-}
-
-.map-hint {
-  position: absolute;
-  right: 12px;
-  bottom: 10px;
-  left: 12px;
-  margin: 0;
-  color: #94a3b8;
-  font-size: 12px;
-  text-align: center;
-  pointer-events: none;
-}
-
-.office-map .nearby-avatar {
-  z-index: 2;
-}
-
-.office-map .self-avatar {
-  z-index: 3;
-}
-
 @media (max-width: 600px) {
   .office-heading h2 {
     font-size: 19px;
   }
 
-  .office-map {
-    height: 280px;
-    background-size: 24px 24px;
-  }
-
   .office-map-summary {
     gap: 9px;
-    font-size: 11px;
-  }
-
-  .avatar-circle {
-    width: 38px;
-    height: 38px;
-    font-size: 12px;
-  }
-
-  .avatar-name {
-    max-width: 88px;
     font-size: 11px;
   }
 }

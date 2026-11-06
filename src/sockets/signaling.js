@@ -405,6 +405,26 @@ export const registerSignalingHandlers = (io) => {
       }
     });
 
+    // Notify other room members when a user leaves voice chat.
+    socket.on('voice:leave', async () => {
+      const avatar =
+        (await getAvatarData(socket.id)) ||
+        activeAvatars.get(socket.id);
+
+      if (!avatar) return;
+
+      socket.to(avatar.roomId).emit('voice:left', {
+        socketId: socket.id,
+        avatarId: avatar.avatarId,
+        username: avatar.username,
+        roomId: avatar.roomId,
+      });
+
+      console.log(
+        `[Voice] User left voice: ${avatar.username}`
+      );
+    });
+
     /**
      * Client -> Server: signal:offer (Secure WebRTC Signaling Relay)
      * Payload: { toSocketId: string, offer: any }

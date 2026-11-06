@@ -2,25 +2,29 @@
   width: 100%;
   margin-top: 20px;
   padding: 20px;
-  border: 1px solid #344256;
+  border: 1px solid #e2e8f0;
   border-radius: 14px;
-  background: #1b2638;
+  background: #ffffff;
+  color: #172033;
+  text-align: center;
 }
 
 .nearby-panel h2 {
   margin: 0;
   font-size: 20px;
+  color: #172033;
+  text-align: center;
+}
+
+.nearby-subtitle,
+.nearby-empty {
+  color: #64748b;
+  font-size: 13px;
+  text-align: center;
 }
 
 .nearby-subtitle {
   margin: 8px 0 16px;
-  color: #b7c2d3;
-  font-size: 13px;
-}
-
-.nearby-empty {
-  color: #b7c2d3;
-  font-size: 14px;
 }
 
 .nearby-list {
@@ -36,7 +40,7 @@
   margin-top: 8px;
   padding: 12px;
   border-radius: 8px;
-  background: #111b2b;
+  background: #f8fafc;
 }
 
 .nearby-dot {
@@ -48,10 +52,26 @@
 
 .nearby-name {
   flex: 1;
-  color: #f8fafc;
+  text-align: left;
 }
 
 .nearby-distance {
-  color: #a5b4fc;
+  color: #6366f1;
   font-size: 12px;
+}
+
+.nearby-distance,
+.voice-status {
+  flex-shrink: 0;
+}
+
+.nearby-panel {
+  text-align: left;
+}
+
+.nearby-item-details {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
 }

@@ -36,6 +36,7 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "ioredis": "^6.0.0",
+    "lucide-react": "^1.69.0",
     "mongoose": "^8.9.5",
     "socket.io": "^4.8.1",
     "socket.io-redis": "^5.4.0"

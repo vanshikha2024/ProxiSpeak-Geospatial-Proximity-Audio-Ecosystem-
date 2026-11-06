@@ -100,10 +100,10 @@ function App() {
   };
 
   return (
-    <main className="app">
+  <main className="app">
+    {!joined ? (
       <section className="welcome-card">
         <div className="logo">P</div>
-
         <h1>ProxiSpeak</h1>
 
         <p className="subtitle">
@@ -143,7 +143,7 @@ function App() {
             ))}
           </select>
 
-          {roomsError && <p>{roomsError}</p>}
+          {roomsError && <p className="error-message">{roomsError}</p>}
 
           <button type="submit" disabled={!isConnected}>
             Enter Office
@@ -152,90 +152,95 @@ function App() {
 
         {roomError && <p className="error-message">{roomError}</p>}
 
-        {userId && (
-          <div className="success-message">
-            <p>Room joined successfully! Your ID: {userId}
-          </p>
-          <h3>Other people in this office ({users.length})</h3>
-
-          {users.length === 0? (
-            <p>No other users yet, Open another tab to test!
-            </p>):(
-              <ul className="user-list">
-                {users.map((user)=>(
-                  <li key={user.id} className="user-item">
-                    <span className="user-dot"></span>
-                    <span> {user.name || "Guest"}</span>
-                  </li>
-                ))
-                }
-              </ul>
-          )}
-          </div>
-        )}
-
         <p className="footer-text">
           Connect with your team, wherever they are.
         </p>
       </section>
-      
-      <div className="voice-controls">
-        <button
-          type="button"
-          onClick={handleStartVoice}
-          disabled={voiceStarted}
-        >
-          {voiceStarted ? "Voice Started" : "Start Voice"}
-        </button>
+    ) : (
+      <>
+      <header className="office-header">
+          <div>
+            <h1>Virtual Office</h1>
+            <p>Everyone in your shared workspace</p>
+          </div>
 
-        {voiceStarted && (
-          <>
-            <button type="button" onClick={toggleMute}>
-              {isMuted ? "Unmute" : "Mute"}
-            </button>
+          <span className="member-count">
+            <span aria-hidden="true">♧</span> {users.length} Members
+          </span>
+        </header>
 
-            <button
-              type="button"
-              onClick={() => {
-                leaveVoice();
-                setVoiceStarted(false);
-                setVoiceError("");
-              }}
-            >
-              Leave Voice
-            </button>
-          </>
-        )}
+        <div className="office-legend">
+          <span><i className="legend-dot you-dot" /> You</span>
+          <span><i className="legend-dot teammates-dot" /> Teammates</span>
+          <span><i className="legend-dot nearby-dot" /> Nearby: {nearbyUsers.length}</span>
+        </div>
 
-        {voiceError && (
-          <p role="alert" className="voice-error">
-            {voiceError}
-          </p>
-        )}
-      </div>
+        <div className="members-strip">
+          {users
+            .filter((member) => member.socketId !== socket?.id)
+            .map((member) => (
+              <div className="member-chip" key={member.socketId}>
+                <span className="member-avatar">
+                  {(member.name || "T").charAt(0).toUpperCase()}
+                </span>
+                <span>{member.name || "Teammate"}</span>
+                <span className="online-label">Online</span>
+              </div>
+            ))}
+        </div>
 
-
-
-      {joined && (
-        <OfficeMap 
-        users={interpolatedUsers} 
-        currentUserId={userId} 
-        localPosition={localPosition}
+        <OfficeMap
+          users={interpolatedUsers}
+          currentUserId={userId}
+          localPosition={localPosition}
         />
-      )}
 
-      {joined && (<NearbyPanel nearbyUsers={nearbyUsers} audioRadius={audioRadius} connectionStatuses={connectionStatuses} speakingUsers={speakingUsers}/>
-      )}
+        <div className="voice-controls">
+          {!voiceStarted ? (
+            <button type="button" onClick={handleStartVoice}>
+              🔊 Start Voice
+            </button>
+          ) : (
+            <>
+              <button type="button" onClick={toggleMute}>
+                {isMuted ? " 🔊 Unmute" : " 🔇 Mute"}
+              </button>
 
-      {joined && (
+              <button
+                type="button"
+                onClick={() => {
+                  leaveVoice();
+                  setVoiceStarted(false);
+                  setVoiceError("");
+                }}
+              >
+                📞 Leave Voice
+              </button>
+            </>
+          )}
+
+          {voiceError && (
+            <p role="alert" className="voice-error">
+              {voiceError}
+            </p>
+          )}
+        </div>
+
+        <NearbyPanel
+          nearbyUsers={nearbyUsers}
+          audioRadius={audioRadius}
+          connectionStatuses={connectionStatuses}
+          speakingUsers={speakingUsers}
+        />
+
         <RemoteAudio
           users={remoteAudioUsers}
           audioRadius={audioRadius}
         />
-      )}
-
-    </main>
-  );
+      </>
+    )}
+  </main>
+);
 }
 
 export default App;

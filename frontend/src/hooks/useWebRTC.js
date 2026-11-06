@@ -447,12 +447,19 @@ setSpeakingUsers((current) => {
         closePeer(peerSocketId);
       }
     }
+    function handleVoiceLeft({ socketId } = {}) {
+      if (socketId) {
+        console.log("[WebRTC] User left voice:", socketId);
+        closePeer(socketId);
+      }
+    }
 
     socket.on("signal:offer", handleOffer);
     socket.on("signal:answer", handleAnswer);
     socket.on("signal:ice", handleIce);
     socket.on("avatar:joined", handleAvatarJoined);
     socket.on("avatar:left", handleAvatarLeft);
+    socket.on("voice:left", handleVoiceLeft);
 
     return () => {
       socket.off("signal:offer", handleOffer);
@@ -460,6 +467,7 @@ setSpeakingUsers((current) => {
       socket.off("signal:ice", handleIce);
       socket.off("avatar:joined", handleAvatarJoined);
       socket.off("avatar:left", handleAvatarLeft);
+      socket.off("voice:left", handleVoiceLeft);
     };
   }, [
     acceptOffer,
@@ -532,27 +540,31 @@ setSpeakingUsers((current) => {
     }, [isMuted]);
 
     const leaveVoice = useCallback(() => {
-        audioStartedRef.current = false;
+      audioStartedRef.current = false;
+      socket.emit("voice:leave");
 
-        // Close every peer connection.
-        peersRef.current.forEach(({ pc }) => {
-        pc.close();
-        });
-        peersRef.current.clear();
+      // Clean up every peer and its associated audio state.
+      const peerIds = [...peersRef.current.keys()];
 
-        // Stop the local microphone.
-        localStreamRef.current?.getTracks().forEach((track) => {
+      peerIds.forEach((peerSocketId) => {
+        closePeer(peerSocketId);
+      });
+
+      // Stop the local microphone.
+      localStreamRef.current?.getTracks().forEach((track) => {
         track.stop();
-        });
+      });
 
-        localStreamRef.current = null;
-        setLocalStream(null);
-        setRemoteStreams([]);
-        setIsMuted(false);
+      localStreamRef.current = null;
+      setLocalStream(null);
+      setRemoteStreams([]);
+      setConnectionStatuses({});
+      setSpeakingUsers({});
+      setIsMuted(false);
 
-        pendingIceRef.current.clear();
-        pendingOffersRef.current.clear();
-    }, []);
+      pendingIceRef.current.clear();
+      pendingOffersRef.current.clear();
+    }, [closePeer]);
 
 
 
