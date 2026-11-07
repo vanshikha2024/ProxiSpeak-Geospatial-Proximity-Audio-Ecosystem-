@@ -43,6 +43,7 @@ async function runRoomLayoutApiTests() {
     // 1a. Non-hex string
     const res1a = await fetch(`${BASE_URL}/api/rooms/invalid-id-xyz`);
     const data1a = await res1a.json();
+    console.log('[DEBUG] Malformed ID response:', data1a);
     assert(res1a.status === 400, '1a. Malformed ID "invalid-id-xyz" returns HTTP 400');
     assert(data1a.success === false, '1a. Response success is false');
     assert(data1a.message === 'Invalid room ID format', '1a. Message indicates invalid room ID format');
@@ -50,6 +51,7 @@ async function runRoomLayoutApiTests() {
     // 1b. Short numeric string
     const res1b = await fetch(`${BASE_URL}/api/rooms/12345`);
     const data1b = await res1b.json();
+    console.log('[DEBUG] Short numeric ID response:', data1b);
     assert(res1b.status === 400, '1b. Short numeric ID "12345" returns HTTP 400');
     assert(data1b.message === 'Invalid room ID format', '1b. Correct error message returned');
 
@@ -268,6 +270,55 @@ async function runRoomLayoutApiTests() {
       assert(liveData.data.spawnPoint.x === 200 && liveData.data.spawnPoint.y === 200, '3a. Spawn point matches');
       assert(liveData.data.obstacles.length === 2, '3a. All obstacles retrieved from MongoDB');
       assert(liveData.data.obstacles[1].label === 'East Wall Barrier', '3a. Obstacle labels and acoustic data intact');
+       
+            // 3b. Update room layout via HTTP
+      const updatedLayout = {
+        width: 1600,
+        height: 900,
+        audioRadius: 120,
+        capacity: 60,
+        spawnPoint: { x: 250, y: 250 },
+        obstacles: [
+          {
+            x: 500,
+            y: 300,
+            width: 200,
+            height: 100,
+            label: 'Updated Meeting Room',
+            blocksSound: true,
+            soundAttenuation: 0.5,
+            blocksMovement: true,
+          },
+        ],
+      };
+
+      const updateRes = await fetch(
+        `${BASE_URL}/api/rooms/${liveRoom._id}/layout`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedLayout),
+        }
+      );
+
+      const updateData = await updateRes.json();
+      console.log('[DEBUG] PUT status:', updateRes.status);
+      console.log('[DEBUG] PUT response:', updateData);
+
+      assert(updateRes.status === 200, '3b. PUT layout returns HTTP 200');
+      assert(updateData.success === true, '3b. Layout update succeeds');
+
+      const verifyRes = await fetch(`${BASE_URL}/api/rooms/${liveRoom._id}`);
+      const verifyData = await verifyRes.json();
+
+      assert(verifyData.data.width === 1600, '3b. Updated room width is persisted');
+      assert(verifyData.data.height === 900, '3b. Updated room height is persisted');
+      assert(verifyData.data.audioRadius === 120, '3b. Updated audio radius is persisted');
+      assert(verifyData.data.spawnPoint.x === 250, '3b. Updated spawn point is persisted');
+      assert(
+        verifyData.data.obstacles[0].label === 'Updated Meeting Room',
+        '3b. Updated obstacles are persisted'
+      );
 
       // 3b. Non-existing room with valid ObjectId format
       const nonExistentId = new mongoose.Types.ObjectId().toString();

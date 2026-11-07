@@ -102,7 +102,7 @@ async function runRoomModelTests() {
     );
 
     // -------------------------------------------------------------------------
-    // Test 4: Default capacity is 50
+    // Test 4: Default capacity is 300
     // -------------------------------------------------------------------------
     console.log('\n[Suite 4: Default Room Capacity]');
     const defaultCapacityRoom = new Room({
@@ -111,7 +111,7 @@ async function runRoomModelTests() {
       height: 800,
     });
     assert(
-      defaultCapacityRoom.capacity === 50,
+      defaultCapacityRoom.capacity === 300,
       `Default capacity is 50 (actual: ${defaultCapacityRoom.capacity})`
     );
 

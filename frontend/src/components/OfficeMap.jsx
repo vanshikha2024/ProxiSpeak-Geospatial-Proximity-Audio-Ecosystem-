@@ -8,6 +8,8 @@ function OfficeMap({
   localPosition,
   audioRadius = 0,
   obstacles = [],
+  roomWidth = 1920,
+  roomHeight = 1080,
 }) {
   return (
     <section className="office-section">
@@ -18,6 +20,8 @@ function OfficeMap({
           localPosition={localPosition}
           audioRadius={audioRadius}
           obstacles={obstacles}
+          roomWidth={roomWidth}
+          roomHeight={roomHeight}
         />
       </div>
     </section>

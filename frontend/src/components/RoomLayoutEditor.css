@@ -1,0 +1,80 @@
+
+.room-layout-editor {
+  width: 100%;
+  max-width: 800px;
+  margin: 20px auto;
+  padding: 24px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(15, 23, 42, 0.08);
+  color: #1e293b;
+}
+
+.room-layout-editor h2 {
+  margin-bottom: 24px;
+  color: #334155;
+}
+
+.room-layout-editor h3 {
+  margin: 22px 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.room-layout-editor label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.room-layout-editor input:not([type="checkbox"]) {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.room-layout-editor fieldset {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+}
+
+.room-layout-editor legend {
+  padding: 0 8px;
+  font-weight: 600;
+}
+
+.room-layout-editor fieldset label:has(input[type="checkbox"]) {
+  flex-direction: row;
+  align-items: center;
+}
+
+.room-layout-editor button {
+  margin: 8px 8px 8px 0;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 6px;
+  background: #635bdb;
+  color: white;
+  cursor: pointer;
+}
+
+.room-layout-editor button:hover {
+  background: #5148c7;
+}
+
+@media (max-width: 600px) {
+  .room-layout-editor fieldset {
+    grid-template-columns: 1fr;
+  }
+}

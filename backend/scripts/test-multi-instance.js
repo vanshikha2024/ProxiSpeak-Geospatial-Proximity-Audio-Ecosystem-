@@ -204,6 +204,7 @@ const runMultiInstanceSuite = async () => {
   const roomAlphaDoc = await Room.create({
     name: 'MultiTest_RoomAlpha',
     audioRadius: 150,
+    capacity: 60,
     dimensions: { width: 1000, height: 1000 },
   });
   const roomBetaDoc = await Room.create({
@@ -581,7 +582,7 @@ const runMultiInstanceSuite = async () => {
   // -------------------------------------------------------------------------
   console.log('\n--- Section 5: Performance & Multi-Client Reliability Measurement ---');
 
-  const SIMULATED_CLIENT_COUNT = 10; // 5 on Instance 1, 5 on Instance 2
+  const SIMULATED_CLIENT_COUNT = 50; // 5 on Instance 1, 5 on Instance 2
   const MOVES_PER_CLIENT = 5;
   console.log(`[Perf Test] Simulating ${SIMULATED_CLIENT_COUNT} concurrent clients (${SIMULATED_CLIENT_COUNT / 2} on Inst 1, ${SIMULATED_CLIENT_COUNT / 2} on Inst 2) in Room Alpha...`);
 
@@ -676,7 +677,7 @@ const runMultiInstanceSuite = async () => {
   console.log(`  --------------------------------------------------`);
 
   assert(
-    totalFailures === 0 && totalDelivered >= 30,
+    totalFailures === 0 && totalDelivered  === SIMULATED_CLIENT_COUNT * MOVES_PER_CLIENT,
     `5. Repeatable multi-client simulation across instances achieved 100% delivery (${totalDelivered}/${totalDelivered} events, 0 failures, avg ${avgLatency} ms)`
   );
 

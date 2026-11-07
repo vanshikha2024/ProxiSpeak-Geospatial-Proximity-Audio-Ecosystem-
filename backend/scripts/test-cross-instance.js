@@ -101,12 +101,27 @@ function waitForHealth(port, maxTimeoutMs = 10000) {
     process.exit(1);
   }
 
-  // Clean up
-  clientA.disconnect();
-  clientB.disconnect();
-  server1.kill('SIGTERM');
-  server2.kill('SIGTERM');
-  process.exit(0);
+// Clean up
+clientA.disconnect();
+clientB.disconnect();
+
+await mongoose.connect(TEST_MONGO_URI);
+await Room.deleteOne({ name: ROOM_NAME });
+await mongoose.disconnect();
+
+await Promise.all(
+  [server1, server2].map(
+    (server) =>
+      new Promise((resolve) => {
+        if (server.exitCode !== null) return resolve();
+        server.once('exit', resolve);
+        server.kill('SIGTERM');
+      })
+  )
+);
+
+console.log('✅ Test room removed and both servers stopped.');
+process.exit(0);
 })().catch((err) => {
   console.error('Fatal cross-instance test error:', err);
   process.exit(1);

@@ -7,12 +7,15 @@ const ICE_SERVERS = {
     { urls: "stun:stun.l.google.com:19302" },
   ],
 };
+const MAX_PEER_CONNECTIONS = 8;
 
 export function useWebRTC(localSocketId, users = []) {
   const [localStream, setLocalStream] = useState(null);
   const [remoteStreams, setRemoteStreams] = useState([]);
   const [connectionStatuses, setConnectionStatuses] = useState({});
   const [speakingUsers, setSpeakingUsers] = useState({});
+  const [isMuted, setIsMuted] = useState(false);
+  const [remoteMuteStatuses, setRemoteMuteStatuses] = useState({});
 
   const peersRef = useRef(new Map());
   const localStreamRef = useRef(null);
@@ -21,39 +24,48 @@ export function useWebRTC(localSocketId, users = []) {
   const pendingIceRef = useRef(new Map());
   const pendingOffersRef = useRef(new Map());
   const audioAnalyzersRef = useRef(new Map());
-  const speakingTimersRef = useRef(new Map());
   const speakingAnimationRef = useRef(null);
+  const pendingPeersRef = useRef(new Set());
+
+  // Keep the latest room-user information available.
+  useEffect(() => {
+    usersRef.current = users;
+  }, [users]);
+
+  // Check whether a teammate is currently within audio range.
+  const isPeerNearby = useCallback((peerSocketId) => {
+    return usersRef.current.some(
+      (user) =>
+        user.socketId === peerSocketId &&
+        user.isNearby === true
+    );
+  }, []);
 
   const detectSpeaking = useCallback(() => {
     const speakingThreshold = 12;
 
-    audioAnalyzersRef.current.forEach(
-      ({ analyser }, peerSocketId) => {
-        const data = new Uint8Array(analyser.fftSize);
-        analyser.getByteTimeDomainData(data);
+    audioAnalyzersRef.current.forEach(({ analyser }, peerSocketId) => {
+      const data = new Uint8Array(analyser.fftSize);
+      analyser.getByteTimeDomainData(data);
 
-        let sum = 0;
+      let sum = 0;
 
-        for (const value of data) {
-          const normalized = (value - 128) / 128;
-          sum += normalized * normalized;
+      for (const value of data) {
+        const normalized = (value - 128) / 128;
+        sum += normalized * normalized;
+      }
+
+      const rms = Math.sqrt(sum / data.length);
+      const isSpeaking = rms * 100 > speakingThreshold;
+
+      setSpeakingUsers((current) => {
+        if (current[peerSocketId] === isSpeaking) {
+          return current;
         }
 
-        const rms = Math.sqrt(sum / data.length);
-        const isSpeaking = rms * 100 > speakingThreshold;
-
-        setSpeakingUsers((current) => {
-          if (current[peerSocketId] === isSpeaking) {
-            return current;
-          }
-
-          return {
-            ...current,
-            [peerSocketId]: isSpeaking,
-          };
-        });
-      }
-    );
+        return { ...current, [peerSocketId]: isSpeaking };
+      });
+    });
 
     speakingAnimationRef.current =
       requestAnimationFrame(detectSpeaking);
@@ -70,11 +82,6 @@ export function useWebRTC(localSocketId, users = []) {
     };
   }, [detectSpeaking]);
 
-  useEffect(() => {
-    usersRef.current = users;
-  }, [users]);
-
-  // Request microphone access only when voice is started.
   const getLocalStream = useCallback(async () => {
     if (localStreamRef.current) {
       return localStreamRef.current;
@@ -90,15 +97,6 @@ export function useWebRTC(localSocketId, users = []) {
       audio: true,
       video: false,
     });
-    console.log("[Local Microphone]", {
-      active: stream.active,
-      tracks: stream.getAudioTracks().map((track) => ({
-        enabled: track.enabled,
-        muted: track.muted,
-        readyState: track.readyState,
-        label: track.label,
-      })),
-    });
 
     localStreamRef.current = stream;
     setLocalStream(stream);
@@ -106,36 +104,35 @@ export function useWebRTC(localSocketId, users = []) {
     return stream;
   }, []);
 
-
   const closePeer = useCallback((peerSocketId) => {
     const peer = peersRef.current.get(peerSocketId);
+    pendingPeersRef.current.delete(peerSocketId);
 
     if (peer) {
       peer.pc.ontrack = null;
       peer.pc.onicecandidate = null;
       peer.pc.onconnectionstatechange = null;
       peer.pc.close();
-
       peersRef.current.delete(peerSocketId);
     }
 
     pendingIceRef.current.delete(peerSocketId);
     pendingOffersRef.current.delete(peerSocketId);
-    const audioAnalyzer =
-      audioAnalyzersRef.current.get(peerSocketId);
 
-    if (audioAnalyzer) {
-      audioAnalyzer.source.disconnect();
-      audioAnalyzer.analyser.disconnect();
-      audioAnalyzer.context.close().catch(() => {});
+    const analyzer = audioAnalyzersRef.current.get(peerSocketId);
+
+    if (analyzer) {
+      analyzer.source.disconnect();
+      analyzer.analyser.disconnect();
+      analyzer.context.close().catch(() => {});
       audioAnalyzersRef.current.delete(peerSocketId);
     }
 
-setSpeakingUsers((current) => {
-  const next = { ...current };
-  delete next[peerSocketId];
-  return next;
-});
+    setSpeakingUsers((current) => {
+      const next = { ...current };
+      delete next[peerSocketId];
+      return next;
+    });
 
     setRemoteStreams((current) =>
       current.filter((item) => item.socketId !== peerSocketId)
@@ -146,8 +143,13 @@ setSpeakingUsers((current) => {
       delete next[peerSocketId];
       return next;
     });
-  }, []);
 
+    setRemoteMuteStatuses((current) => {
+      const next = { ...current };
+      delete next[peerSocketId];
+      return next;
+    });
+  }, []);
 
   const flushPendingIce = useCallback(async (peerSocketId, pc) => {
     if (!pc.remoteDescription) return;
@@ -163,10 +165,7 @@ setSpeakingUsers((current) => {
           new RTCIceCandidate(candidate)
         );
       } catch (error) {
-        console.error(
-          "[WebRTC] Could not add queued ICE candidate:",
-          error
-        );
+        console.error("[WebRTC] Could not add queued ICE:", error);
       }
     }
   }, []);
@@ -176,7 +175,8 @@ setSpeakingUsers((current) => {
       if (
         !peerSocketId ||
         peerSocketId === socket.id ||
-        peerSocketId === localSocketId
+        peerSocketId === localSocketId ||
+        !isPeerNearby(peerSocketId)
       ) {
         return null;
       }
@@ -185,17 +185,46 @@ setSpeakingUsers((current) => {
         return peersRef.current.get(peerSocketId).pc;
       }
 
-      const stream = await getLocalStream();
+      if (pendingPeersRef.current.has(peerSocketId)) {
+        return null;
+      }
 
-      // Avoid creating a duplicate peer if another async
-      // operation created it while microphone access was pending.
+      const pendingCount = [...pendingPeersRef.current].filter(
+        (id) => !peersRef.current.has(id)
+      ).length;
+
+      if (peersRef.current.size + pendingCount >= MAX_PEER_CONNECTIONS) {
+        console.log("[WebRTC] Maximum audio connections reached.");
+        return null;
+      }
+
+      pendingPeersRef.current.add(peerSocketId);
+
+      let stream;
+
+      try {
+        stream = await getLocalStream();
+      } catch (error) {
+        pendingPeersRef.current.delete(peerSocketId);
+        throw error;
+      }
+
+      // The teammate may have moved while microphone permission
+      // was being requested.
+      if (!audioStartedRef.current || !isPeerNearby(peerSocketId)) {
+        pendingPeersRef.current.delete(peerSocketId);
+        return null;
+      }
+
       if (peersRef.current.has(peerSocketId)) {
+        pendingPeersRef.current.delete(peerSocketId);
         return peersRef.current.get(peerSocketId).pc;
       }
 
       const pc = new RTCPeerConnection(ICE_SERVERS);
 
       peersRef.current.set(peerSocketId, { pc });
+      pendingPeersRef.current.delete(peerSocketId);
 
       setConnectionStatuses((current) => ({
         ...current,
@@ -207,19 +236,14 @@ setSpeakingUsers((current) => {
       });
 
       pc.onicecandidate = (event) => {
-        if (!event.candidate) return;
-
-        if (!socket.connected) {
-          console.warn("[WebRTC] Socket disconnected; ICE not sent.");
-          return;
-        }
+        if (!event.candidate || !socket.connected) return;
+        if (!isPeerNearby(peerSocketId)) return;
 
         socket.emit("signal:ice", {
           toSocketId: peerSocketId,
           candidate: event.candidate.toJSON(),
         });
       };
-
 
       pc.ontrack = (event) => {
         const remoteStream =
@@ -232,13 +256,16 @@ setSpeakingUsers((current) => {
         if (AudioContextClass) {
           try {
             const context = new AudioContextClass();
-            const source = context.createMediaStreamSource(remoteStream);
+            const source =
+              context.createMediaStreamSource(remoteStream);
             const analyser = context.createAnalyser();
 
             analyser.fftSize = 512;
             source.connect(analyser);
 
-            audioAnalyzersRef.current.get(peerSocketId)?.context.close();
+            audioAnalyzersRef.current
+              .get(peerSocketId)?.context.close();
+
             audioAnalyzersRef.current.set(peerSocketId, {
               context,
               source,
@@ -271,14 +298,10 @@ setSpeakingUsers((current) => {
 
           return [
             ...current,
-            {
-              socketId: peerSocketId,
-              stream: remoteStream,
-            },
+            { socketId: peerSocketId, stream: remoteStream },
           ];
         });
       };
-
 
       pc.onconnectionstatechange = () => {
         const status = pc.connectionState;
@@ -296,8 +319,18 @@ setSpeakingUsers((current) => {
       };
 
       if (makeOffer) {
+        if (!socket.connected || !isPeerNearby(peerSocketId)) {
+          closePeer(peerSocketId);
+          return null;
+        }
+
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
+
+        if (!socket.connected || !isPeerNearby(peerSocketId)) {
+          closePeer(peerSocketId);
+          return null;
+        }
 
         socket.emit("signal:offer", {
           toSocketId: peerSocketId,
@@ -307,22 +340,28 @@ setSpeakingUsers((current) => {
 
       return pc;
     },
-    [localSocketId, getLocalStream, closePeer]
+    [
+      localSocketId,
+      getLocalStream,
+      closePeer,
+      isPeerNearby,
+    ]
   );
 
   const acceptOffer = useCallback(
     async (fromSocketId, offer) => {
       if (!audioStartedRef.current) {
-        // Wait for the user to click Start Voice.
         pendingOffersRef.current.set(fromSocketId, offer);
+        return;
+      }
+
+      if (!isPeerNearby(fromSocketId)) {
         return;
       }
 
       try {
         let pc = peersRef.current.get(fromSocketId)?.pc;
 
-        // If we already made an offer, avoid replacing an
-        // in-progress connection unnecessarily.
         if (pc && pc.signalingState !== "stable") {
           console.warn(
             "[WebRTC] Offer collision with:",
@@ -332,10 +371,23 @@ setSpeakingUsers((current) => {
         }
 
         if (!pc) {
+          if (
+            peersRef.current.size + pendingPeersRef.current.size >=
+              MAX_PEER_CONNECTIONS ||
+            pendingPeersRef.current.has(fromSocketId)
+          ) {
+            pendingOffersRef.current.set(fromSocketId, offer);
+            console.log(
+              "[WebRTC] Audio offer queued; connection limit reached:",
+              fromSocketId
+            );
+            return;
+          }
+
           pc = await createPeer(fromSocketId, false);
         }
 
-        if (!pc) return;
+        if (!pc || !isPeerNearby(fromSocketId)) return;
 
         await pc.setRemoteDescription(
           new RTCSessionDescription(offer)
@@ -346,42 +398,130 @@ setSpeakingUsers((current) => {
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
 
+        if (!isPeerNearby(fromSocketId)) {
+          closePeer(fromSocketId);
+          return;
+        }
+
         socket.emit("signal:answer", {
           toSocketId: fromSocketId,
           answer: pc.localDescription,
         });
 
-        console.log(
-          "[WebRTC] Answer sent to:",
-          fromSocketId
-        );
+        console.log("[WebRTC] Answer sent to:", fromSocketId);
       } catch (error) {
-        console.error(
-          "[WebRTC] Offer handling failed:",
-          error
-        );
+        console.error("[WebRTC] Offer handling failed:", error);
       }
     },
-    [createPeer, flushPendingIce]
+    [createPeer, flushPendingIce, isPeerNearby, closePeer]
   );
 
+  // Manage peers dynamically as users enter and leave audio range.
   useEffect(() => {
-    async function handleOffer({
-      fromSocketId,
-      offer,
-    } = {}) {
-      if (!fromSocketId || !offer) return;
+    const currentSocketId = localSocketId || socket.id;
 
+    if (
+      !audioStartedRef.current ||
+      !socket.connected ||
+      !currentSocketId
+    ) {
+      return;
+    }
+
+    const nearbyUsers = users.filter(
+      (user) =>
+        user.socketId &&
+        user.socketId !== currentSocketId &&
+        user.isNearby === true
+    );
+
+    const nearbyIds = new Set(
+      nearbyUsers.map((user) => user.socketId)
+    );
+
+    // Close connections to users who moved outside audio range.
+    [...peersRef.current.keys()].forEach((peerSocketId) => {
+      if (!nearbyIds.has(peerSocketId)) {
+        console.log(
+          "[WebRTC] Closing out-of-range peer:",
+          peerSocketId
+        );
+
+        closePeer(peerSocketId);
+      }
+    });
+
+    // Accept queued offers when audio connection slots become available.
+    for (const [peerSocketId, offer] of pendingOffersRef.current) {
+      if (
+        peersRef.current.size + pendingPeersRef.current.size >=
+        MAX_PEER_CONNECTIONS
+      ) {
+        break;
+      }
+
+      if (pendingPeersRef.current.has(peerSocketId)) {
+        continue;
+      }
+
+      if (!nearbyIds.has(peerSocketId)) {
+        pendingOffersRef.current.delete(peerSocketId);
+        continue;
+      }
+
+      if (peersRef.current.has(peerSocketId)) {
+        pendingOffersRef.current.delete(peerSocketId);
+        continue;
+      }
+
+      pendingOffersRef.current.delete(peerSocketId);
+
+      acceptOffer(peerSocketId, offer).catch((error) => {
+        console.error("[WebRTC] Could not process queued offer:", error);
+      });
+    }
+
+    // Only the lower socket ID initiates the offer.
+    nearbyUsers.forEach((user) => {
+      if (
+        currentSocketId.localeCompare(user.socketId) < 0 &&
+        !peersRef.current.has(user.socketId)
+      ) {
+        createPeer(user.socketId, true).catch((error) => {
+          console.error(
+            "[WebRTC] Could not connect to nearby user:",
+            user.socketId,
+            error
+          );
+        });
+      }
+    });
+  }, [
+    users,
+    localSocketId,
+    createPeer,
+    closePeer,
+    acceptOffer,
+    connectionStatuses,
+  ]);
+
+  useEffect(() => {
+    async function handleOffer({ fromSocketId, offer } = {}) {
+      if (!fromSocketId || !offer) return;
       await acceptOffer(fromSocketId, offer);
     }
 
-    async function handleAnswer({
-      fromSocketId,
-      answer,
-    } = {}) {
+    async function handleAnswer({ fromSocketId, answer } = {}) {
+      if (!fromSocketId || !answer) return;
+
       const pc = peersRef.current.get(fromSocketId)?.pc;
 
       if (!pc || !answer) return;
+
+      if (!isPeerNearby(fromSocketId)) {
+        closePeer(fromSocketId);
+        return;
+      }
 
       try {
         await pc.setRemoteDescription(
@@ -390,28 +530,19 @@ setSpeakingUsers((current) => {
 
         await flushPendingIce(fromSocketId, pc);
 
-        console.log(
-          "[WebRTC] Answer received from:",
-          fromSocketId
-        );
+        console.log("[WebRTC] Answer received from:", fromSocketId);
       } catch (error) {
-        console.error(
-          "[WebRTC] Answer handling failed:",
-          error
-        );
+        console.error("[WebRTC] Answer handling failed:", error);
       }
     }
 
-    async function handleIce({
-      fromSocketId,
-      candidate,
-    } = {}) {
+    async function handleIce({ fromSocketId, candidate } = {}) {
       if (!fromSocketId || !candidate) return;
+
+      if (!isPeerNearby(fromSocketId)) return;
 
       const pc = peersRef.current.get(fromSocketId)?.pc;
 
-      // Candidates can arrive before an offer or answer
-      // has established the remote description.
       if (!pc || !pc.remoteDescription) {
         const queued =
           pendingIceRef.current.get(fromSocketId) || [];
@@ -426,36 +557,15 @@ setSpeakingUsers((current) => {
           new RTCIceCandidate(candidate)
         );
       } catch (error) {
-        console.error(
-          "[WebRTC] ICE candidate handling failed:",
-          error
-        );
+        console.error("[WebRTC] ICE handling failed:", error);
       }
     }
 
-    function handleAvatarJoined(avatar = {}) {
-      if (!audioStartedRef.current) return;
-
-      if (avatar.socketId) {
-        createPeer(avatar.socketId, true).catch((error) => {
-          console.error(
-            "[WebRTC] Could not connect to new user:",
-            error
-          );
-        });
-      }
-    }
-
-    function handleAvatarLeft({
-      socketId,
-      avatarId,
-    } = {}) {
+    function handleAvatarLeft({ socketId, avatarId } = {}) {
       const peerSocketId = socketId || avatarId;
-
-      if (peerSocketId) {
-        closePeer(peerSocketId);
-      }
+      if (peerSocketId) closePeer(peerSocketId);
     }
+
     function handleVoiceLeft({ socketId } = {}) {
       if (socketId) {
         console.log("[WebRTC] User left voice:", socketId);
@@ -463,37 +573,45 @@ setSpeakingUsers((current) => {
       }
     }
 
+    function handleVoiceMuteChanged({ socketId, isMuted } = {}) {
+      if (!socketId || typeof isMuted !== "boolean") return;
+
+      setRemoteMuteStatuses((previous) => ({
+        ...previous,
+        [socketId]: isMuted,
+      }));
+    }
+
     socket.on("signal:offer", handleOffer);
     socket.on("signal:answer", handleAnswer);
     socket.on("signal:ice", handleIce);
-    socket.on("avatar:joined", handleAvatarJoined);
     socket.on("avatar:left", handleAvatarLeft);
     socket.on("voice:left", handleVoiceLeft);
+    socket.on("voice:mute:changed", handleVoiceMuteChanged);
 
     return () => {
       socket.off("signal:offer", handleOffer);
       socket.off("signal:answer", handleAnswer);
       socket.off("signal:ice", handleIce);
-      socket.off("avatar:joined", handleAvatarJoined);
       socket.off("avatar:left", handleAvatarLeft);
       socket.off("voice:left", handleVoiceLeft);
+      socket.off("voice:mute:changed", handleVoiceMuteChanged);
     };
   }, [
     acceptOffer,
-    createPeer,
     closePeer,
     flushPendingIce,
+    isPeerNearby,
   ]);
 
   const startAudio = useCallback(async () => {
     if (audioStartedRef.current) return;
 
-    // Request microphone permission.
     await getLocalStream();
 
     audioStartedRef.current = true;
 
-    // Process offers received before this user started voice.
+    // Handle only pending offers from users still nearby.
     const pendingOffers = [
       ...pendingOffersRef.current.entries(),
     ];
@@ -501,27 +619,30 @@ setSpeakingUsers((current) => {
     pendingOffersRef.current.clear();
 
     for (const [peerSocketId, offer] of pendingOffers) {
-      await acceptOffer(peerSocketId, offer);
+      if (isPeerNearby(peerSocketId)) {
+        await acceptOffer(peerSocketId, offer);
+      }
     }
 
-    // Connect to users already present in the room.
-    const peers = usersRef.current.filter(
+    const currentSocketId = localSocketId || socket.id;
+
+    // Only initiate connections with nearby users.
+    const nearbyUsers = usersRef.current.filter(
       (user) =>
         user.socketId &&
-        user.socketId !== socket.id &&
-        user.socketId !== localSocketId
+        user.socketId !== currentSocketId &&
+        user.isNearby === true &&
+        currentSocketId.localeCompare(user.socketId) < 0
     );
 
-    for (const user of peers) {
-      // If a pending offer already created this peer,
-      // do not initiate another offer.
+    for (const user of nearbyUsers) {
       if (peersRef.current.has(user.socketId)) continue;
 
       try {
         await createPeer(user.socketId, true);
       } catch (error) {
         console.error(
-          "[WebRTC] Could not connect to user:",
+          "[WebRTC] Could not connect to nearby user:",
           user.socketId,
           error
         );
@@ -529,12 +650,12 @@ setSpeakingUsers((current) => {
     }
   }, [
     getLocalStream,
-    createPeer,
     acceptOffer,
+    createPeer,
+    isPeerNearby,
     localSocketId,
   ]);
 
-  const [isMuted, setIsMuted] = useState(false);
   const toggleMute = useCallback(() => {
     const stream = localStreamRef.current;
     if (!stream) return;
@@ -542,40 +663,42 @@ setSpeakingUsers((current) => {
     const nextMuted = !isMuted;
 
     stream.getAudioTracks().forEach((track) => {
-    track.enabled = !nextMuted;
+      track.enabled = !nextMuted;
     });
 
     setIsMuted(nextMuted);
-    }, [isMuted]);
 
-    const leaveVoice = useCallback(() => {
-      audioStartedRef.current = false;
-      socket.emit("voice:leave");
+    socket.emit("voice:mute", {
+      isMuted: nextMuted,
+    });
+  }, [isMuted]);
 
-      // Clean up every peer and its associated audio state.
-      const peerIds = [...peersRef.current.keys()];
+  const leaveVoice = useCallback(() => {
+    audioStartedRef.current = false;
 
-      peerIds.forEach((peerSocketId) => {
-        closePeer(peerSocketId);
-      });
+    socket.emit("voice:leave");
 
-      // Stop the local microphone.
-      localStreamRef.current?.getTracks().forEach((track) => {
-        track.stop();
-      });
+    [...peersRef.current.keys()].forEach((peerSocketId) => {
+      closePeer(peerSocketId);
+    });
 
-      localStreamRef.current = null;
-      setLocalStream(null);
-      setRemoteStreams([]);
-      setConnectionStatuses({});
-      setSpeakingUsers({});
-      setIsMuted(false);
+    localStreamRef.current?.getTracks().forEach((track) => {
+      track.stop();
+    });
 
-      pendingIceRef.current.clear();
-      pendingOffersRef.current.clear();
-    }, [closePeer]);
+    localStreamRef.current = null;
 
+    setLocalStream(null);
+    setRemoteStreams([]);
+    setConnectionStatuses({});
+    setSpeakingUsers({});
+    setRemoteMuteStatuses({});
+    setIsMuted(false);
 
+    pendingIceRef.current.clear();
+    pendingOffersRef.current.clear();
+    pendingPeersRef.current.clear();
+  }, [closePeer]);
 
   useEffect(() => {
     return () => {
@@ -588,6 +711,15 @@ setSpeakingUsers((current) => {
       peersRef.current.clear();
       pendingIceRef.current.clear();
       pendingOffersRef.current.clear();
+      pendingPeersRef.current.clear();
+
+      audioAnalyzersRef.current.forEach(({ source, analyser, context }) => {
+        source.disconnect();
+        analyser.disconnect();
+        context.close().catch(() => {});
+      });
+
+      audioAnalyzersRef.current.clear();
 
       localStreamRef.current
         ?.getTracks()
@@ -602,6 +734,7 @@ setSpeakingUsers((current) => {
     remoteStreams,
     connectionStatuses,
     speakingUsers,
+    remoteMuteStatuses,
     startAudio,
     isMuted,
     toggleMute,

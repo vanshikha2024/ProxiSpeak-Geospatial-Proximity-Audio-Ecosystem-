@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+
+import { useCallback, useEffect, useRef, useState } from "react";
 import { socket } from "../network/socket";
 
 function normalizeAvatar(avatar) {
@@ -25,6 +26,9 @@ export function useRoom() {
   const [userId, setUserId] = useState(null);
   const [users, setUsers] = useState([]);
   const [roomError, setRoomError] = useState("");
+
+  // Preserve room details during temporary disconnections.
+  const sessionRef = useRef(null);
 
   useEffect(() => {
     function handleInitialAvatars(avatars) {
@@ -94,12 +98,28 @@ export function useRoom() {
       setUsers([]);
     }
 
+    function handleConnect() {
+      const session = sessionRef.current;
+
+      if (!session) return;
+
+      console.log("[Room] Reconnecting to previous room...");
+
+      socket.emit("avatar:join", {
+        username: session.username,
+        roomId: session.roomId,
+        x: session.position.x,
+        y: session.position.y,
+      });
+    }
+
     socket.on("avatars:initial", handleInitialAvatars);
     socket.on("avatar:joined", handleAvatarJoined);
     socket.on("avatar:moved", handleAvatarMoved);
     socket.on("avatar:left", handleAvatarLeft);
     socket.on("error", handleRoomError);
     socket.on("disconnect", handleDisconnect);
+    socket.on("connect", handleConnect);
 
     return () => {
       socket.off("avatars:initial", handleInitialAvatars);
@@ -108,6 +128,7 @@ export function useRoom() {
       socket.off("avatar:left", handleAvatarLeft);
       socket.off("error", handleRoomError);
       socket.off("disconnect", handleDisconnect);
+      socket.off("connect", handleConnect);
     };
   }, []);
 
@@ -140,6 +161,13 @@ export function useRoom() {
         return;
       }
 
+      // Remember the session for automatic reconnection.
+      sessionRef.current = {
+        username: cleanUsername,
+        roomId: cleanRoomId,
+        position: { x, y },
+      };
+
       setRoomError("");
 
       socket.emit("avatar:join", {
@@ -151,19 +179,25 @@ export function useRoom() {
     },
     []
   );
-  const leaveRoom = useCallback(() => {
-    if (!socket.connected) {
-      setUsers([]);
-      setUserId(null);
-      return;
-    }
 
-    socket.emit("avatar:leave");
+  const leaveRoom = useCallback(() => {
+    // Clear saved session first so reconnect cannot rejoin intentionally.
+    sessionRef.current = null;
+
+    if (socket.connected) {
+      socket.emit("avatar:leave");
+    }
 
     setUsers([]);
     setUserId(null);
     setRoomError("");
   }, []);
 
-  return { userId, users, roomError, joinRoom, leaveRoom };
+  return {
+    userId,
+    users,
+    roomError,
+    joinRoom,
+    leaveRoom,
+  };
 }

@@ -245,3 +245,60 @@ export const getRoomMembers = async (req, res) => {
     });
   }
 };
+
+export const updateRoomLayout = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const validation = validateRoomLayout(req.body);
+
+    if (!validation.isValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Room layout validation failed',
+        errors: validation.errors,
+      });
+    }
+
+    const {
+      width,
+      height,
+      audioRadius,
+      capacity,
+      spawnPoint,
+      obstacles,
+    } = req.body;
+
+    const room = await Room.findById(id);
+
+    if (!room) {
+      return res.status(404).json({
+        success: false,
+        message: 'Room not found',
+      });
+    }
+
+    room.width = width;
+    room.height = height;
+    room.dimensions = { width, height };
+    room.audioRadius = audioRadius;
+    room.capacity = capacity;
+    room.spawnPoint = spawnPoint;
+    room.obstacles = obstacles;
+
+    await room.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Room layout updated successfully',
+      data: room,
+    });
+  } catch (error) {
+    console.error('[Room Controller] Update layout error:', error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update room layout',
+    });
+  }
+};

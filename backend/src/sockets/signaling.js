@@ -1,9 +1,15 @@
 import mongoose from 'mongoose';
 import User from '../models/User.js';
 import Room from '../models/Room.js';
-import { PERSISTENCE_THROTTLE_MS, DEFAULT_AUDIO_RADIUS } from '../config/constants.js';
+import {
+  PERSISTENCE_THROTTLE_MS,
+  DEFAULT_AUDIO_RADIUS,
+  DEFAULT_ROOM_CAPACITY,
+} from '../config/constants.js';
 import { isWithinAudioRadius } from '../utils/proximity.js';
 import { getAvatarData, setAvatarData, deleteAvatarData, getRoomAvatars, pruneRoomAvatars } from '../redis/avatarState.js';
+import { withRoomCapacityLock } from '../utils/roomCapacity.js';
+
 /**
  * In-memory cache for room audio radii:
  * Map<roomId, number>
@@ -286,6 +292,38 @@ export const registerSignalingHandlers = (io) => {
         const effectiveRoomId = roomDoc ? roomDoc._id.toString() : rawRoomId;
         const mongoRoomId = roomDoc ? roomDoc._id : (mongoose.isValidObjectId(rawRoomId) ? rawRoomId : null);
 
+        // Enforce room capacity across all backend instances.
+try {
+  await withRoomCapacityLock(effectiveRoomId, async () => {
+    const connectedSockets = await io
+      .in(effectiveRoomId)
+      .fetchSockets();
+
+    const existingMembers = connectedSockets.filter(
+      (member) => member.id !== socket.id
+    ).length;
+
+    const roomCapacity = roomDoc?.capacity ?? DEFAULT_ROOM_CAPACITY;
+
+    if (existingMembers >= roomCapacity) {
+      throw new Error('ROOM_FULL');
+    }
+
+    await socket.join(effectiveRoomId);
+  });
+} catch (error) {
+  console.error('[Room Capacity] JOIN ERROR:', error.stack || error);
+
+  socket.emit('error', {
+    message:
+      error.message === 'ROOM_FULL'
+        ? `This room is full. Maximum capacity: ${roomDoc?.capacity ?? DEFAULT_ROOM_CAPACITY}`
+        : `Unable to join room: ${error.message}`,
+  });
+
+  return;
+}
+
         // Track effective room audio radius
         const effectiveRadius = (roomDoc && Number.isFinite(roomDoc.audioRadius) && roomDoc.audioRadius > 0)
           ? roomDoc.audioRadius
@@ -374,9 +412,6 @@ export const registerSignalingHandlers = (io) => {
           console.log(`[Room] Socket ${socket.id} switched from ${previousRoomId} to ${effectiveRoomId}`);
         }
 
-        // Join the new room
-        socket.join(effectiveRoomId);
-
         // 5. Update in-memory registry
         activeAvatars.set(socket.id, avatarData);
         await setAvatarData(socket.id, avatarData);
@@ -425,49 +460,67 @@ export const registerSignalingHandlers = (io) => {
      * Client -> Server: avatar:move
      * Payload: { x: number, y: number }
      */
+    
     socket.on('avatar:move', async (payload) => {
       try {
-        const currentAvatar = await getAvatarData(socket.id);
+        // Use the local avatar registry first; Redis is only a fallback.
+        let currentAvatar = activeAvatars.get(socket.id);
+
+        if (!currentAvatar) {
+          currentAvatar = await getAvatarData(socket.id);
+
+          if (currentAvatar) {
+            activeAvatars.set(socket.id, currentAvatar);
+          }
+        }
+
         if (!currentAvatar) {
           socket.emit('error', { message: 'Avatar has not joined yet' });
           return;
         }
 
         const { x, y } = payload || {};
+
         if (!areCoordinatesValid(x, y)) {
-          socket.emit('error', { message: 'Invalid coordinates: x and y must be finite numbers' });
+          socket.emit('error', {
+            message: 'Invalid coordinates: x and y must be finite numbers',
+          });
           return;
         }
 
-        // 1. Immediately update in-memory coordinates
+        // Update local state immediately.
         currentAvatar.x = x;
         currentAvatar.y = y;
-        await setAvatarData(socket.id, currentAvatar);
-        const local = activeAvatars.get(socket.id);
-        if (local) {
-          local.x = x;
-          local.y = y;
-        }
 
-        // 2. Broadcast updated position ONLY to other occupants in the same room (no self-echo)
-        const movePayload = {
+        // Broadcast immediately without waiting for Redis.
+        socket.to(currentAvatar.roomId).emit('avatar:moved', {
           avatarId: currentAvatar.avatarId,
           socketId: socket.id,
           username: currentAvatar.username,
           x,
           y,
           roomId: currentAvatar.roomId,
-        };
+        });
 
-        socket.to(currentAvatar.roomId).emit('avatar:moved', movePayload);
+        // Persist shared Redis state asynchronously.
+        setAvatarData(socket.id, currentAvatar).catch((err) => {
+          console.error('[Avatar] Redis movement update failed:', err.message);
+        });
 
-        // 3. Throttled MongoDB persistence (max once per second per user)
-        persistPositionThrottled(socket.id, currentAvatar.avatarId, [x, y]);
+        // Keep MongoDB persistence throttled.
+        persistPositionThrottled(
+          socket.id,
+          currentAvatar.avatarId,
+          [x, y]
+        );
       } catch (err) {
-        console.error(`[Avatar] Unexpected error handling avatar:move:`, err.message);
-        socket.emit('error', { message: 'Internal server error while moving' });
+        console.error('[Avatar] Unexpected error handling avatar:move:', err.message);
+        socket.emit('error', {
+          message: 'Internal server error while moving',
+        });
       }
     });
+
 
     // Client -> Server: avatar:leave
     socket.on('avatar:leave', async () => {
@@ -547,6 +600,26 @@ export const registerSignalingHandlers = (io) => {
 
       console.log(
         `[Voice] User left voice: ${avatar.username}`
+      );
+    });
+
+    // Broadcast microphone mute status to other members in the same room.
+    socket.on('voice:mute', async ({ isMuted } = {}) => {
+      const avatar =
+        (await getAvatarData(socket.id)) ||
+        activeAvatars.get(socket.id);
+
+      if (!avatar || typeof isMuted !== 'boolean') return;
+
+      socket.to(avatar.roomId).emit('voice:mute:changed', {
+        socketId: socket.id,
+        avatarId: avatar.avatarId,
+        username: avatar.username,
+        isMuted,
+      });
+
+      console.log(
+        `[Voice] ${avatar.username} ${isMuted ? 'muted' : 'unmuted'}`
       );
     });
 

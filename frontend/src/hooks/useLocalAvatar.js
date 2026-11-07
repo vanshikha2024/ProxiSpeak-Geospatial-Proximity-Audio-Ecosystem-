@@ -2,12 +2,14 @@
 import { useCallback, useEffect, useState } from "react";
 
 const STEP = 15;
-const MAP_WIDTH = 1920;
-const MAP_HEIGHT = 1080;
+const DEFAULT_MAP_WIDTH  = 1920;
+const DEFAULT_MAP_HEIGHT  = 1080;
 
 export function useLocalAvatar(
   initialPosition = { x: 500, y: 250 },
-  obstacles = []
+  obstacles = [],
+  mapWidth = DEFAULT_MAP_WIDTH,
+  mapHeight = DEFAULT_MAP_HEIGHT
 ) {
   const [position, setPosition] = useState(initialPosition);
 
@@ -31,11 +33,11 @@ export function useLocalAvatar(
       const next = {
         x: Math.max(
           AVATAR_MARGIN_X,
-          Math.min(MAP_WIDTH - AVATAR_MARGIN_X, current.x + dx)
+          Math.min(mapWidth  - AVATAR_MARGIN_X, current.x + dx)
         ),
         y: Math.max(
           AVATAR_MARGIN_Y,
-          Math.min(MAP_HEIGHT - AVATAR_MARGIN_Y, current.y + dy)
+          Math.min(mapHeight  - AVATAR_MARGIN_Y, current.y + dy)
         ),
       };
       const collision = obstacles.some((obstacle) => {
@@ -51,7 +53,7 @@ export function useLocalAvatar(
 
       return collision ? current : next;
     });
-  }, [obstacles]);
+  }, [obstacles, mapWidth, mapHeight]);
 
   useEffect(() => {
     function handleKeyDown(event) {

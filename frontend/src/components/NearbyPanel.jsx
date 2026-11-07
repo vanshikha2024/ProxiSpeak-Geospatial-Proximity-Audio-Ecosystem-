@@ -6,6 +6,7 @@ function NearbyPanel({
   audioRadius = 100,
   connectionStatuses = {},
   speakingUsers = {},
+  remoteMuteStatuses = {},
 }) {
   const nearby = nearbyUsers.filter((user) => user.isNearby);
 
@@ -55,6 +56,10 @@ function NearbyPanel({
                   <span className="speaking-indicator">
                     🔊 Speaking
                   </span>
+                )}
+
+                {remoteMuteStatuses[user.socketId] && (
+                  <span className="muted-indicator">🔇 Muted</span>
                 )}
 
                 <span className="nearby-distance">

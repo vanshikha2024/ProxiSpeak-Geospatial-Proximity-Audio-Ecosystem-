@@ -12,17 +12,23 @@ import { useAudioRadius } from "./hooks/useAudioRadius";
 import { useWebRTC } from "./hooks/useWebRTC";
 import { socket } from "./network/socket";
 import RemoteAudio from "./components/RemoteAudio";
+import RoomLayoutEditor from "./components/RoomLayoutEditor";
 
 function App() {
   const [name, setName] = useState("");
   const [rooms, setRooms] = useState([]);
   const [roomsError, setRoomsError] = useState("");
   const [roomId, setRoomId] = useState("");
+  const [isLayoutEditorOpen, setIsLayoutEditorOpen] = useState(false);
+  const [layoutSaveMessage, setLayoutSaveMessage] = useState("");
+  const [layoutSaveError, setLayoutSaveError] = useState("");
   const selectedRoom = rooms.find((room) => room._id === roomId);
   const obstacles = selectedRoom?.obstacles ?? [];
   const { position: localPosition } = useLocalAvatar(
     selectedRoom?.spawnPoint ?? { x: 500, y: 250 },
-    obstacles
+    obstacles,
+    selectedRoom?.width ?? 1920,
+    selectedRoom?.height ?? 1080
   );
   const { isConnected } = useSocket();
   const { userId, users, roomError, joinRoom, leaveRoom } = useRoom();
@@ -31,11 +37,11 @@ function App() {
   const nearbyUsers = useNearbyUsers(localPosition, users, userId, audioRadius);
   const interpolatedUsers = useInterpolatedAvatars(nearbyUsers);
   const localSocketId = socket.id;
-  const { remoteStreams, connectionStatuses, speakingUsers, startAudio, isMuted, toggleMute, leaveVoice } = useWebRTC(localSocketId, nearbyUsers);
+  const { remoteStreams, connectionStatuses, speakingUsers, remoteMuteStatuses, startAudio, isMuted, toggleMute, leaveVoice } = useWebRTC(localSocketId, nearbyUsers);
   const [voiceStarted, setVoiceStarted] = useState(false);
   const [voiceError, setVoiceError] = useState("");
   const remoteAudioUsers = remoteStreams.map((remote) => {
-  const user = users.find(
+    const user = interpolatedUsers.find(
       (item) => item.socketId === remote.socketId
     );
 
@@ -91,6 +97,50 @@ function App() {
     }
 
     joinRoom(name, roomId, localPosition);
+  }
+  async function handleSaveLayout(layout) {
+    const serverUrl = import.meta.env.VITE_SERVER_URL;
+
+    try {
+      setLayoutSaveError("");
+      setLayoutSaveMessage("");
+
+      const response = await fetch(
+        `${serverUrl}/api/rooms/${roomId}/layout`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(layout),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(
+          result.message ||
+          result.errors?.join(", ") ||
+          "Could not save room layout."
+        );
+      }
+
+      const updatedRoom = result.data;
+
+      setRooms((currentRooms) =>
+        currentRooms.map((room) =>
+          room._id === roomId
+            ? { ...room, ...(updatedRoom || layout) }
+            : room
+        )
+      );
+
+      setIsLayoutEditorOpen(false);
+      setLayoutSaveMessage("Room layout saved successfully.");
+    } catch (error) {
+      setLayoutSaveError(error.message || "Could not save room layout.");
+    }
   }
   const handleStartVoice = async () => {
     try {
@@ -178,18 +228,66 @@ function App() {
           </span>
         </header>
 
-        <button
-          type="button"
-          onClick={() => {
-            leaveVoice();
-            setVoiceStarted(false);
-            setVoiceError("");
-            leaveRoom();
-            setJoined(false);
-          }}
-        >
-          Change Room
-        </button>
+        <div className="office-actions">
+          <button
+            type="button"
+            onClick={() => {
+              leaveVoice();
+              setVoiceStarted(false);
+              setVoiceError("");
+              leaveRoom();
+            }}
+          >
+            Change Room
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              leaveVoice();
+              setVoiceStarted(false);
+              setVoiceError("");
+              leaveRoom();
+              setName("");
+              setRoomId("");
+            }}
+          >
+            Leave Office
+          </button>
+        </div>
+        
+        <div className="room-layout-controls">
+          <button
+            type="button"
+            onClick={() => {
+              setLayoutSaveMessage("");
+              setLayoutSaveError("");
+              setIsLayoutEditorOpen((current) => !current);
+            }}
+          >
+            {isLayoutEditorOpen ? "Close Layout Editor" : "Edit Room Layout"}
+          </button>
+
+          {layoutSaveMessage && (
+            <p role="status" className="success-message">
+              {layoutSaveMessage}
+            </p>
+          )}
+
+          {layoutSaveError && (
+            <p role="alert" className="error-message">
+              {layoutSaveError}
+            </p>
+          )}
+        </div>
+
+        {isLayoutEditorOpen && (
+          <RoomLayoutEditor
+            room={selectedRoom}
+            onSave={handleSaveLayout}
+            onCancel={() => setIsLayoutEditorOpen(false)}
+          />
+        )}
 
         <div className="office-legend">
           <span><i className="legend-dot you-dot" /> You</span>
@@ -217,6 +315,8 @@ function App() {
           localPosition={localPosition}
           audioRadius={audioRadius}
           obstacles={obstacles}
+          roomWidth={selectedRoom?.width ?? 1920}
+          roomHeight={selectedRoom?.height ?? 1080}
         />
 
         <div className="voice-controls">
@@ -255,6 +355,7 @@ function App() {
           audioRadius={audioRadius}
           connectionStatuses={connectionStatuses}
           speakingUsers={speakingUsers}
+          remoteMuteStatuses={remoteMuteStatuses}
         />
 
         <RemoteAudio
