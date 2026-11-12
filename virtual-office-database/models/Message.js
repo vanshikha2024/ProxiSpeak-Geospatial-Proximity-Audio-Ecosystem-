@@ -5,7 +5,8 @@ const messageSchema = new mongoose.Schema({
   senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   text: { type: String, required: true, trim: true, minlength: 1, maxlength: 2000 },
   createdAt: { type: Date, default: Date.now, expires: 60 * 60 * 24 * 90 }
-}, { versionKey: false });
+},
+{ versionKey: false });
 
 messageSchema.index({ roomId: 1, createdAt: -1 });
 messageSchema.index({ senderId: 1, createdAt: -1 });
