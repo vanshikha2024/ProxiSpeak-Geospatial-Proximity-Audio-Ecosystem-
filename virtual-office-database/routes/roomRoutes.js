@@ -23,7 +23,7 @@ router.post(
         .status(400)
         .json({
           success: false,
-          message: "Room name must be between 2 and 80 characters.",
+          message: "Room name must be between 2 and 80 characters",
         });
     if (
       !Number.isInteger(width) ||
@@ -38,7 +38,7 @@ router.post(
         .json({
           success: false,
           message:
-            "Room width and height must be integers between 100 and 10000.",
+            "Room width and height must be integers between 100 and 10000",
         });
     if (
       typeof description !== "string" ||
