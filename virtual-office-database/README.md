@@ -81,4 +81,3 @@ Movement is broadcast immediately, while the example persists at most about once
 - This starter does not implement login/authentication. Do not expose user creation or updates publicly in production without authentication and authorization.
 - If your team already has `server.js`, a database connection file, or Socket.IO setup, merge the relevant model/routes/socket code into your existing backend rather than replacing your files wholesale.
 - Canvas coordinates are pixels in a flat 2D world. A MongoDB `2dsphere` index is not appropriate for arbitrary pixel x/y values; use normal numeric fields/indexes for this design. Only use GeoJSON + `2dsphere` if coordinates are geographic or transformed into an appropriate spatial coordinate system.
-- Coordinate bounds should match your actual Canvas/room dimensions.
